@@ -27,7 +27,7 @@ function fakeCli(terminals: () => LiveTerminal[], calls: string[][] = [], layout
     if (args[0] === 'terminal' && args[1] === 'list') {
       return JSON.stringify({ ok: true, result: { terminals: terminals(), visualLayouts: layouts() } })
     }
-    if (args[0] === 'terminal' && args[1] === 'switch') return JSON.stringify({ ok: true, result: {} })
+    if (args[0] === 'terminal' && (args[1] === 'switch' || args[1] === 'rename')) return JSON.stringify({ ok: true, result: {} })
     throw new Error(`unexpected ${args.join(' ')}`)
   })
 }
@@ -264,4 +264,66 @@ test('active tabs are read from every split group of a workspace', () => {
     }
   ])
   assert.deepEqual([...(tabs.get('w1') ?? [])].sort(), ['a', 'b'])
+})
+
+test('a loop shows on its card and its runs do not mark the chat unseen', async () => {
+  fakeCli(() => [term(1)])
+  const worker = await mountWorker(main, { host: host() })
+  await worker.request('board.get', { refresh: true })
+  const status = (state: 'working' | 'done', receivedAt: number) =>
+    worker.emit('agent.status.changed', { workspaceId: null, paneKey: 'p', terminalId: 'term_1', state, receivedAt })
+
+  await status('working', Date.now())
+  await worker.hooks.fire('agent.tool.after', {
+    agent: 'claude',
+    workspaceId: null,
+    terminalId: 'term_1',
+    tool: 'ScheduleWakeup',
+    input: { delaySeconds: 180, reason: 'watch CI' }
+  })
+  await new Promise((r) => setTimeout(r, 10))
+  await status('done', Date.now())
+  let card = ((await worker.request('board.get', {})) as BoardView).cards[0]
+  assert.equal(card.monitor?.kind, 'loop')
+  assert.equal(card.monitor?.everySec, 180)
+  assert.equal(card.monitor?.stale, false)
+  assert.equal(card.unseenAt ?? null, null)
+
+  await worker.hooks.fire('agent.tool.after', {
+    agent: 'claude',
+    workspaceId: null,
+    terminalId: 'term_1',
+    tool: 'ScheduleWakeup',
+    input: { stop: true }
+  })
+  await new Promise((r) => setTimeout(r, 10))
+  card = ((await worker.request('board.get', {})) as BoardView).cards[0]
+  assert.equal(card.monitor, null)
+  await worker.deactivate()
+})
+
+test('the card shows the tab title, and renaming a card renames the Orca tab', async () => {
+  let tabTitle = 'Mi ticket'
+  const calls: string[][] = []
+  fakeCli(
+    () => [term(1, { title: '✳ Claude Code' })],
+    calls,
+    () => [{ worktreeId: WT, root: { type: 'group', activeTabId: 'x', tabs: [{ tabId: 'tab1', title: tabTitle }] } }]
+  )
+  const worker = await mountWorker(main, { host: host() })
+  let v = (await worker.request('board.get', { refresh: true })) as BoardView
+  assert.equal(v.cards[0].title, 'Mi ticket')
+
+  setOrcaRunner(async (args) => {
+    calls.push(args)
+    if (args[1] === 'rename') tabTitle = args[5]
+    const layouts = [{ worktreeId: WT, root: { type: 'group', activeTabId: 'x', tabs: [{ tabId: 'tab1', title: tabTitle }] } }]
+    return JSON.stringify({ ok: true, result: { terminals: [term(1, { title: '✳ Claude Code' })], visualLayouts: layouts } })
+  })
+  v = (await worker.request('card.update', { key: 'tab1', label: 'PROJ-456 Login', note: 'n' })) as BoardView
+  assert.deepEqual(calls.find((c) => c[1] === 'rename'), ['terminal', 'rename', '--terminal', 'term_1', '--title', 'PROJ-456 Login', '--json'])
+  assert.equal(v.cards[0].title, 'PROJ-456 Login')
+  assert.equal(v.cards[0].label, '')
+  assert.equal(v.cards[0].note, 'n')
+  await worker.deactivate()
 })

@@ -11,6 +11,8 @@ export type LiveTerminal = {
   title: string
   agentIdentity?: string | null
   lastOutputAt?: number | null
+  /** The tab's title as Orca shows it (custom name when renamed), from the visual layouts. */
+  tabTitle?: string | null
 }
 
 const COLUMN_TITLES = {
@@ -84,7 +86,7 @@ export function mergeChats(
     let card = state.cards[key]
     if (!card) {
       const orphans = Object.values(state.cards).filter((c) => !liveKeys.has(c.key))
-      const title = cleanTitle(t.title)
+      const title = cleanTitle(t.tabTitle || t.title)
       const match =
         orphans.find((c) => c.ptyId === t.ptyId) ??
         orphans.find((c) => c.worktreeId === t.worktreeId && c.title === title && c.agent === (t.agentIdentity ?? null))
@@ -114,7 +116,7 @@ export function mergeChats(
     state.cards[key] = {
       ...card,
       column: columnIds.has(card.column) ? card.column : firstColumn,
-      title: cleanTitle(t.title),
+      title: cleanTitle(t.tabTitle || t.title),
       agent: t.agentIdentity ?? null,
       worktreeId: t.worktreeId,
       worktreeName: basename(t.worktreePath),
@@ -205,6 +207,24 @@ export function activeTabsByWorktree(layouts: unknown): Map<string, Set<string>>
     walk(layout.root)
     out.set(layout.worktreeId, tabs)
   }
+  return out
+}
+
+/** Tab titles by tab id, from `orca terminal list --include-visual-layouts`. */
+export function tabTitlesOf(layouts: unknown): Map<string, string> {
+  const out = new Map<string, string>()
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return
+    if (Array.isArray(node)) return node.forEach(walk)
+    const n = node as Record<string, unknown>
+    if (Array.isArray(n.tabs)) {
+      for (const tab of n.tabs as Record<string, unknown>[]) {
+        if (typeof tab?.tabId === 'string' && typeof tab.title === 'string' && tab.title.trim()) out.set(tab.tabId, tab.title)
+      }
+    }
+    for (const [k, v] of Object.entries(n)) if (k !== 'tabs' && typeof v === 'object') walk(v)
+  }
+  walk(layouts)
   return out
 }
 

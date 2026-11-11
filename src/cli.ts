@@ -62,6 +62,11 @@ export async function listTerminals(): Promise<{ terminals: LiveTerminal[]; layo
   return { terminals: result.terminals ?? [], layouts: result.visualLayouts ?? [] }
 }
 
+/** Sets the tab's title; an empty title resets it to the automatic one. */
+export async function renameTerminal(handle: string, title: string): Promise<void> {
+  await runJson(['terminal', 'rename', '--terminal', handle, '--title', title])
+}
+
 export async function switchTerminal(handle: string): Promise<void> {
   await runJson(['terminal', 'switch', '--terminal', handle])
 }

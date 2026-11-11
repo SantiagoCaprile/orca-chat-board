@@ -5,12 +5,17 @@ import { CSS } from './style.ts'
 import { AGENT_LOGOS, AGENT_NAMES } from './logos.ts'
 import { STATUS_ICON, type StatusKind } from './icons.ts'
 import { locale, setLanguage, t } from './i18n.ts'
+import { isStale } from '../src/monitor.ts'
 
 const INTERRUPTED = new Set(['interruption', 'failure', 'cancellation'])
 
 /** What the status icon shows: the agent state, with a finished turn that was cut short as `interrupted`. */
 function statusOf(c: CardView): StatusKind | null {
   if (c.closed) return 'closed'
+  // Like Orca: a running turn, a question or a permission request outrank the monitor.
+  if (c.monitor && c.state !== 'working' && c.state !== 'waiting' && c.state !== 'blocked') {
+    return isStale(c.monitor, Date.now()) ? 'stale' : 'monitoring'
+  }
   if (!c.state) return null
   if (c.state === 'done' && c.outcome && INTERRUPTED.has(c.outcome)) return 'interrupted'
   return c.state
@@ -73,6 +78,30 @@ function el<K extends keyof HTMLElementTagNameMap>(
   }
   for (const c of children) if (c !== null && c !== false) node.append(c)
   return node
+}
+
+/** A duration as `45s`, `3m`, `2h` or `1d`. */
+function span(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000))
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.round(s / 60)}m`
+  if (s < 86400) return `${Math.round(s / 3600)}h`
+  return `${Math.round(s / 86400)}d`
+}
+
+/** The card's time slot for a monitor: next run, or how long it has been silent. */
+function monitorTime(c: CardView, kind: StatusKind | null): { text: string; title: string } | null {
+  const m = c.monitor
+  if (!m || (kind !== 'monitoring' && kind !== 'stale')) return null
+  const now = Date.now()
+  const parts = [t.monitorKind[m.kind]]
+  if (m.everySec) parts.push(t.every(span(m.everySec * 1000)))
+  if (m.label) parts.push(m.label)
+  parts.push(t.lastRun(span(now - m.lastRunAt)))
+  const title = parts.join(' · ')
+  if (kind === 'stale') return { text: t.noSignal(span(now - m.lastRunAt)), title }
+  if (m.nextAt) return { text: m.nextAt > now ? t.nextRun(span(m.nextAt - now)) : t.dueNow, title }
+  return { text: t.lastRun(span(now - m.lastRunAt)), title }
 }
 
 function ago(at: number | null): string {
@@ -175,8 +204,10 @@ async function saveColumns(columns: Column[]): Promise<void> {
 
 function renderCard(c: CardView): HTMLElement {
   const kind = statusOf(c)
-  const stateBadge = kind && show.status ? statusIcon(kind, c.closed ? c.closedAt : c.stateAt) : null
+  const stateBadge =
+    kind && show.status ? statusIcon(kind, c.closed ? c.closedAt : kind === 'monitoring' || kind === 'stale' ? (c.monitor?.lastRunAt ?? null) : c.stateAt) : null
   const when = c.closed ? c.closedAt : (c.stateAt ?? c.lastOutputAt)
+  const mon = monitorTime(c, kind)
 
   const card = el(
     'div',
@@ -200,7 +231,7 @@ function renderCard(c: CardView): HTMLElement {
       c.agent && show.agent ? agentBadge(c.agent) : null,
       c.worktreeName && show.workspace ? el('span', { class: 'chip ws' }, c.worktreeName) : null,
       c.label && c.title && c.label !== c.title ? el('span', {}, c.title) : null,
-      when && show.time ? el('span', { class: 'time' }, ago(when)) : null
+      show.time && mon ? el('span', { class: `time ${kind}`, title: mon.title }, mon.text) : when && show.time ? el('span', { class: 'time' }, ago(when)) : null
     ),
     c.note && show.notes && editingCard !== c.key ? el('div', { class: 'note' }, c.note) : null
   )
@@ -249,13 +280,23 @@ function renderCard(c: CardView): HTMLElement {
 }
 
 function renderEditor(c: CardView): HTMLElement {
-  const label = el('input', { placeholder: c.title || t.name, 'aria-label': t.cardName })
-  label.value = c.label
+  // Open chats: this field is the Orca tab's name. Closed chats have no tab: it names the card.
+  const current = c.label || c.title
+  const nameLabel = c.closed ? t.cardName : t.tabName
+  const label = el('input', { placeholder: c.closed ? t.name : t.tabNameHint, 'aria-label': nameLabel, title: nameLabel })
+  label.value = current
   const note = el('textarea', { rows: '3', placeholder: t.noteHint, 'aria-label': t.note })
   note.value = c.note
   const save = async () => {
     editingCard = null
-    setView(await request<BoardView>('card.update', { key: c.key, label: label.value, note: note.value }))
+    const patch: { key: string; note: string; label?: string } = { key: c.key, note: note.value }
+    if (label.value.trim() !== current) patch.label = label.value
+    if (patch.label !== undefined) {
+      const card = view?.cards.find((x) => x.key === c.key)
+      if (card) card.label = patch.label.trim() // show the new name while the tab is renamed
+    }
+    render(true)
+    setView(await request<BoardView>('card.update', patch))
   }
   const cancel = () => {
     editingCard = null

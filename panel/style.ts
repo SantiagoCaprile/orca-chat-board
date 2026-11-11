@@ -94,6 +94,8 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 .card.st-waiting { --st: #f0a020; }
 .card.st-done { --st: #2fb170; }
 .card.st-interrupted { --st: #e5484d; }
+.card.st-monitoring { --st: #4f8ff7; }
+.card.st-stale { --st: #8b95a5; }
 
 /* Unseen: the agent stopped while you were looking elsewhere (like Orca's yellow tab). */
 .card.unseen {
@@ -118,6 +120,12 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 .status.interrupted { color: #e5484d; }
 .status.blocked { color: #f76b15; }
 .status.closed { color: var(--orca-muted-foreground); }
+.status.monitoring { color: #4f8ff7; }
+.status.monitoring svg { animation: beat 1.6s ease-in-out infinite; }
+.status.stale { color: #8b95a5; }
+.time.monitoring { color: #4f8ff7; }
+.time.stale { color: #e5a50a; }
+@keyframes beat { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes tip { 0%, 70% { transform: rotate(0); } 85%, 100% { transform: rotate(180deg); } }
 @media (prefers-reduced-motion: reduce) { .status svg { animation: none !important; } }

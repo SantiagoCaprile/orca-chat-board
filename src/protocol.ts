@@ -45,6 +45,7 @@ export type CardView = StoredCard & {
   /** How the agent's last turn ended, when Orca says: `interruption`, `failure`, `success`… */
   outcome: string | null
   lastOutputAt: number | null
+  monitor: MonitorInfo | null
 }
 
 export type BoardView = {
@@ -53,6 +54,21 @@ export type BoardView = {
   refreshedAt: number
   /** Why listing terminals failed (raw detail, the panel words it); the board then shows what it last knew. */
   error: string | null
+}
+
+/** A loop, schedule or background watcher an agent left running (seen through its tool calls). */
+export type MonitorInfo = {
+  kind: 'loop' | 'cron' | 'monitor'
+  /** Seconds between runs, when the agent said. */
+  everySec: number | null
+  /** When the agent said it wakes up next. */
+  nextAt: number | null
+  /** Last time it set the monitor up or ran a turn. */
+  lastRunAt: number
+  /** No sign of life for about twice the interval. */
+  stale: boolean
+  /** Cron expression or short description, when the agent gave one. */
+  label: string | null
 }
 
 export type CardPatch = { key: string; label?: string; note?: string }

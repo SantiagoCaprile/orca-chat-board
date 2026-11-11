@@ -5,6 +5,7 @@ import type { AgentState, BoardState, BoardView, CardView } from './protocol.ts'
 import {
   activeTabsByWorktree,
   chatsOf,
+  tabTitlesOf,
   clearArchived,
   deleteCard,
   markUnseen,
@@ -14,10 +15,12 @@ import {
   setColumns,
   updateCard
 } from './board.ts'
-import { listTerminals, switchTerminal } from './cli.ts'
+import { listTerminals, renameTerminal, switchTerminal } from './cli.ts'
+import { applyToolCall, monitorView, onRun, type StoredMonitor } from './monitor.ts'
 
 const BOARD_KEY = 'board'
 const STATUS_KEY = 'status'
+const MONITORS_KEY = 'monitors'
 
 type Status = { state: AgentState; at: number; outcome?: string | null }
 
@@ -43,19 +46,30 @@ export default function activate(orca: OrcaWorkerApi): void {
   const loadBoard = async (): Promise<BoardState> => normalizeBoard(await orca.storage.get(BOARD_KEY), locale)
   const loadStatus = async (): Promise<Record<string, Status>> =>
     ((await orca.storage.get(STATUS_KEY)) as Record<string, Status> | null) ?? {}
+  /** Monitors by terminal handle. */
+  const loadMonitors = async (): Promise<Record<string, StoredMonitor>> =>
+    ((await orca.storage.get(MONITORS_KEY)) as Record<string, StoredMonitor> | null) ?? {}
+  const liveMonitor = async (handle: string): Promise<boolean> => {
+    const m = (await loadMonitors())[handle]
+    return !!m && monitorView(m, Date.now())?.stale === false
+  }
 
   async function view(state: BoardState): Promise<BoardView> {
     const status = await loadStatus()
+    const monitors = await loadMonitors()
+    const now = Date.now()
     const cards: CardView[] = Object.values(state.cards).map((c) => {
       const handle = c.closed ? null : (handles[c.key] ?? null)
       const s = handle ? status[handle] : undefined
+      const m = handle ? monitors[handle] : undefined
       return {
         ...c,
         handle,
         state: s?.state ?? null,
         stateAt: s?.at ?? null,
         outcome: s?.outcome ?? null,
-        lastOutputAt: lastOutput[c.key] ?? null
+        lastOutputAt: lastOutput[c.key] ?? null,
+        monitor: m ? monitorView(m, now) : null
       }
     })
     return { columns: state.columns, cards, refreshedAt, error: lastError }
@@ -95,7 +109,9 @@ export default function activate(orca: OrcaWorkerApi): void {
     let state = await loadBoard()
     try {
       const { terminals, layouts } = await listTerminals()
-      const merged = mergeChats(state, chatsOf(terminals), Date.now())
+      const titles = tabTitlesOf(layouts)
+      const withTabTitles = terminals.map((t) => ({ ...t, tabTitle: titles.get(t.tabId) ?? null }))
+      const merged = mergeChats(state, chatsOf(withTabTitles), Date.now())
       state = merged.state
       handles = merged.handles
       lastOutput = merged.lastOutput
@@ -109,6 +125,16 @@ export default function activate(orca: OrcaWorkerApi): void {
       const status = await loadStatus()
       for (const h of Object.keys(status)) if (!live.has(h)) delete status[h]
       await orca.storage.set(STATUS_KEY, status)
+      const monitors = await loadMonitors()
+      const now = Date.now()
+      let dropped = false
+      for (const [h, m] of Object.entries(monitors)) {
+        if (!live.has(h) || !monitorView(m, now)) {
+          delete monitors[h]
+          dropped = true
+        }
+      }
+      if (dropped) await orca.storage.set(MONITORS_KEY, monitors)
     } catch (err) {
       lastError = (err as Error).message.split('\n')[0]
       orca.log(`terminal list failed: ${lastError}`)
@@ -138,7 +164,21 @@ export default function activate(orca: OrcaWorkerApi): void {
 
   orca.panels.handle('board.move', ({ key, column, index }) => mutate((s) => moveCard(s, key, column, index)))
   orca.panels.handle('board.columns.set', ({ columns }) => mutate((s) => setColumns(s, columns)))
-  orca.panels.handle('card.update', (patch) => mutate((s) => updateCard(s, patch.key, patch)))
+  // The name of an open chat is its Orca tab's title: rename the tab, then re-list.
+  orca.panels.handle('card.update', async (patch) => {
+    const handle = handles[patch.key]
+    if (typeof patch.label === 'string' && handle) {
+      try {
+        await renameTerminal(handle, patch.label.trim())
+        const { label: _label, ...rest } = patch
+        await serial(refresh)
+        return mutate((s) => updateCard(s, patch.key, { ...rest, label: '' }))
+      } catch (err) {
+        orca.log(`terminal rename failed: ${(err as Error).message}`)
+      }
+    }
+    return mutate((s) => updateCard(s, patch.key, patch))
+  })
   orca.panels.handle('card.delete', ({ key }) => mutate((s) => deleteCard(s, key)))
   orca.panels.handle('archive.clear', () => mutate(clearArchived))
 
@@ -191,6 +231,22 @@ export default function activate(orca: OrcaWorkerApi): void {
     }, 400)
   })
 
+  // Loops, schedules and background watchers, recognised from the tools the agent calls.
+  orca.hooks.on('agent.tool.after', (event) => {
+    const handle = event.terminalId
+    if (!handle) return
+    void serial(async () => {
+      const monitors = await loadMonitors()
+      const next = applyToolCall(monitors[handle] ?? null, event, Date.now())
+      if (next === undefined) return
+      if (next) monitors[handle] = next
+      else if (monitors[handle]) delete monitors[handle]
+      else return
+      await orca.storage.set(MONITORS_KEY, monitors)
+      orca.panels.post('board.changed', await view(await loadBoard()))
+    })
+  })
+
   orca.events.on('agent.status.changed', ({ terminalId, state, receivedAt, mainAgent }) =>
     serial(async () => {
       if (!terminalId) return
@@ -205,9 +261,19 @@ export default function activate(orca: OrcaWorkerApi): void {
       }
       await orca.storage.set(STATUS_KEY, status)
 
+      // A turn of a loop or schedule is its sign of life.
+      if (state === 'working') {
+        const monitors = await loadMonitors()
+        if (monitors[terminalId]) {
+          monitors[terminalId] = onRun(monitors[terminalId], receivedAt)
+          await orca.storage.set(MONITORS_KEY, monitors)
+        }
+      }
+
       // Unseen mark: set when an agent stops working while you are not looking at it,
       // cleared as soon as it works again.
-      const needsYou = prev?.state === 'working' && state !== 'working'
+      // A loop finishing one of its runs is not news.
+      const needsYou = prev?.state === 'working' && state !== 'working' && !(await liveMonitor(terminalId))
       if (state !== 'working' && !needsYou) return
       let board = await refresh()
       const key = keyOfHandle(terminalId)

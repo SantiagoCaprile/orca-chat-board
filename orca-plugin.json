@@ -81,6 +81,11 @@
           "Español"
         ]
       }
+    ],
+    "hooks": [
+      {
+        "event": "agent.tool.after"
+      }
     ]
   },
   "capabilities": [

@@ -2,7 +2,7 @@
 const svg = (body: string) =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`
 
-export type StatusKind = 'working' | 'waiting' | 'done' | 'interrupted' | 'blocked' | 'closed'
+export type StatusKind = 'working' | 'waiting' | 'done' | 'interrupted' | 'blocked' | 'closed' | 'monitoring' | 'stale'
 
 export const STATUS_ICON: Record<StatusKind, string> = {
   // loader-circle, spun by CSS
@@ -17,6 +17,9 @@ export const STATUS_ICON: Record<StatusKind, string> = {
   interrupted: svg('<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'),
   // triangle-alert
   blocked: svg('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+  // activity: the icon Orca shows for an agent in monitoring mode
+  monitoring: svg('<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>'),
+  stale: svg('<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>'),
   // archive
   closed: svg('<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>')
 }
