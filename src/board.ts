@@ -175,6 +175,13 @@ export function updateCard(prev: BoardState, key: string, patch: { label?: strin
   return { ...prev, cards: { ...prev.cards, [key]: next } }
 }
 
+/** Forgets every closed chat at once. */
+export function clearArchived(prev: BoardState): BoardState {
+  const cards: Record<string, StoredCard> = {}
+  for (const c of Object.values(prev.cards)) if (!c.closed) cards[c.key] = c
+  return { ...prev, cards }
+}
+
 export function deleteCard(prev: BoardState, key: string): BoardState {
   const card = prev.cards[key]
   if (!card || !card.closed) return prev

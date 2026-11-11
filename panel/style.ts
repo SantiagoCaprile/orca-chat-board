@@ -146,7 +146,12 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
   border: none; border-radius: 4px; padding: 2px 8px; }
 
 details.archive { border-top: 1px solid var(--orca-border); padding: 6px 8px; flex: none; max-height: 40%; overflow: auto; }
-details.archive summary { cursor: pointer; color: var(--orca-muted-foreground); }
+details.archive summary { cursor: pointer; color: var(--orca-muted-foreground); display: flex; align-items: center; gap: 6px; }
+details.archive summary { list-style: none; }
+details.archive summary::-webkit-details-marker { display: none; }
+details.archive summary::before { content: '▸'; }
+details.archive[open] summary::before { content: '▾'; }
+details.archive .archive-title { flex: 1; }
 details.archive .list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .danger { color: var(--orca-destructive); }
 `

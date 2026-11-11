@@ -44,7 +44,10 @@ const en = {
   collapse: 'Collapse column',
   expand: (title: string, n: number) => `${title} (${n}): click to expand`,
   loading: 'Loading chats…',
-  archived: (n: number) => `Archived (${n})`
+  archived: (n: number) => `Archived (${n})`,
+  clearArchive: 'Clear',
+  clearArchiveHint: 'Remove every archived card',
+  confirmClear: (n: number) => `Remove ${n}?`
 }
 
 type Strings = typeof en
@@ -92,7 +95,10 @@ const es: Strings = {
   collapse: 'Contraer columna',
   expand: (title, n) => `${title} (${n}): click para expandir`,
   loading: 'Cargando chats…',
-  archived: (n) => `Archivados (${n})`
+  archived: (n) => `Archivados (${n})`,
+  clearArchive: 'Vaciar',
+  clearArchiveHint: 'Borrar todas las tarjetas archivadas',
+  confirmClear: (n) => `¿Borrar ${n}?`
 }
 
 const orcaLocale: string = (globalThis as { orca?: { locale?: string } }).orca?.locale ?? 'en'

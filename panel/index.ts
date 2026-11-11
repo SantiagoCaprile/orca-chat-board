@@ -36,6 +36,7 @@ let filter = ''
 let editingCard: string | null = null
 let renamingColumn: string | null = null
 let confirmDeleteColumn: string | null = null
+let confirmClearArchive = false
 let dragKey: string | null = null
 let flash: string | null = null
 let pendingRender = false
@@ -490,7 +491,29 @@ function render(force = false): void {
       const wasOpen = (document.querySelector('details.archive') as HTMLDetailsElement | null)?.open ?? false
       const list = el('div', { class: 'list' })
       for (const c of closed) list.append(renderCard(c))
-      const details = el('details', { class: 'archive' }, el('summary', {}, t.archived(closed.length)), list)
+      const clear = el(
+        'button',
+        { class: `ghost${confirmClearArchive ? ' danger' : ''}`, title: t.clearArchiveHint },
+        confirmClearArchive ? t.confirmClear(closed.length) : t.clearArchive
+      )
+      clear.onclick = async (e) => {
+        e.preventDefault() // a button inside <summary> would otherwise toggle the section
+        if (confirmClearArchive) {
+          confirmClearArchive = false
+          setView(await request<BoardView>('archive.clear', {}))
+        } else {
+          confirmClearArchive = true
+          render(true)
+          setTimeout(() => {
+            if (confirmClearArchive) {
+              confirmClearArchive = false
+              render()
+            }
+          }, 3000)
+        }
+      }
+      const summary = el('summary', {}, el('span', { class: 'archive-title' }, t.archived(closed.length)), clear)
+      const details = el('details', { class: 'archive' }, summary, list)
       details.open = wasOpen || closed.some((c) => c.key === editingCard)
       children.push(details)
     }

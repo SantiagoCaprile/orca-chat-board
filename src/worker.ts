@@ -4,6 +4,7 @@ import type { OrcaWorkerApi } from 'orca/worker'
 import type { AgentState, BoardState, BoardView, CardView } from './protocol.ts'
 import {
   chatsOf,
+  clearArchived,
   deleteCard,
   mergeChats,
   moveCard,
@@ -118,6 +119,7 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('board.columns.set', ({ columns }) => mutate((s) => setColumns(s, columns)))
   orca.panels.handle('card.update', (patch) => mutate((s) => updateCard(s, patch.key, patch)))
   orca.panels.handle('card.delete', ({ key }) => mutate((s) => deleteCard(s, key)))
+  orca.panels.handle('archive.clear', () => mutate(clearArchived))
 
   orca.panels.handle('chat.focus', async ({ key }) => {
     let handle = handles[key]

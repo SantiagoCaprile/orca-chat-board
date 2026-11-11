@@ -66,6 +66,8 @@ declare module 'orca' {
     'card.update': { input: CardPatch; output: BoardView }
     /** Forgets a card; only closed chats can be deleted. */
     'card.delete': { input: { key: string }; output: BoardView }
+    /** Forgets every closed chat. */
+    'archive.clear': { input: Record<string, never>; output: BoardView }
     /** Shows the chat's terminal tab in Orca. */
     'chat.focus': { input: { key: string }; output: { ok: boolean; error: 'closed' | string | null } }
   }

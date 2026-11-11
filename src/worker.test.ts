@@ -194,3 +194,15 @@ test('a collapsed column stays collapsed and keeps its cards', () => {
   assert.equal(s.columns.find((c) => c.id === 'backlog')?.collapsed, undefined)
   assert.equal(s.cards.tab1.column, 'done')
 })
+
+test('clearing the archive forgets only closed chats', async () => {
+  let live = [term(1), term(2), term(3)]
+  fakeCli(() => live)
+  const worker = await mountWorker(main, { host: host() })
+  await worker.request('board.get', { refresh: true })
+  live = [term(1)]
+  await worker.request('board.get', { refresh: true })
+  const v = (await worker.request('archive.clear', {})) as BoardView
+  assert.deepEqual(v.cards.map((c) => c.key), ['tab1'])
+  await worker.deactivate()
+})
