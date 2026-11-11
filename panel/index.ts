@@ -2,7 +2,7 @@
 // (plugin.request / board.changed); agent status updates arrive live via orca.on.
 import type { BoardView, CardView, Column } from '../src/protocol.ts'
 import { CSS } from './style.ts'
-import { CLAUDE_SVG, CURSOR_PNG } from './logos.ts'
+import { AGENT_LOGOS, AGENT_NAMES } from './logos.ts'
 import { STATUS_ICON, type StatusKind } from './icons.ts'
 import { locale, setLanguage, t } from './i18n.ts'
 
@@ -83,17 +83,17 @@ function ago(at: number | null): string {
   return `${Math.floor(s / 86400)}d`
 }
 
-/** The agent's logo when we have one, otherwise its name as a chip. */
+/** The agent's logo as Orca shows it; an initial for an agent Orca adds later. */
 function agentBadge(agent: string): HTMLElement {
-  if (agent === 'claude' || agent === 'claude-agent-teams') {
-    const span = el('span', { class: 'logo', title: 'Claude', role: 'img', 'aria-label': 'Claude' })
-    span.innerHTML = CLAUDE_SVG
+  const name = AGENT_NAMES[agent] ?? agent
+  const logo = AGENT_LOGOS[agent]
+  if (logo && 'svg' in logo) {
+    const span = el('span', { class: 'logo', title: name, role: 'img', 'aria-label': name })
+    span.innerHTML = logo.svg
     return span
   }
-  if (agent === 'cursor') {
-    return el('img', { class: 'logo', src: CURSOR_PNG, alt: 'Cursor', title: 'Cursor' })
-  }
-  return el('span', { class: `chip agent-${agent}` }, agent)
+  if (logo) return el('img', { class: 'logo', src: logo.img, alt: name, title: name })
+  return el('span', { class: 'logo initial', title: name, role: 'img', 'aria-label': name }, name.charAt(0).toUpperCase())
 }
 
 const titleOf = (c: CardView) => c.label || c.title || t.untitled

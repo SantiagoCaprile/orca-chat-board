@@ -119,10 +119,9 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
   background: color-mix(in srgb, var(--c) 14%, transparent); color: color-mix(in srgb, var(--c) 65%, var(--orca-foreground)); }
 .logo { width: 15px; height: 15px; display: inline-flex; flex: none; border-radius: 3px; }
 .logo svg { width: 100%; height: 100%; }
-.chip.agent-claude { --c: #d97757; }
-.chip.agent-cursor { --c: #4f8ff7; }
-.chip.agent-codex { --c: #10a37f; }
-.chip.agent-gemini { --c: #9b6cf2; }
+.logo { color: var(--orca-foreground); object-fit: contain; }
+.logo.initial { align-items: center; justify-content: center; font-size: 10px; font-weight: 700;
+  background: var(--orca-muted); color: var(--orca-muted-foreground); }
 .chip.ws { --c: #1fb5b5; }
 .note { margin-top: 4px; color: var(--orca-muted-foreground); white-space: pre-wrap; word-break: break-word; }
 .card-actions { position: absolute; top: 3px; right: 3px; display: none; gap: 2px;
