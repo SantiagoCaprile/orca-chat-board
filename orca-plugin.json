@@ -1,0 +1,100 @@
+{
+  "manifestVersion": 2,
+  "id": "chat-board",
+  "name": "Chat Board",
+  "version": "0.1.0",
+  "description": "A kanban of your agent chats (Claude, Cursor, Codex tabs) across every workspace, with your own columns and live agent status.",
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "panels": [
+      {
+        "id": "board",
+        "title": "Chat Board",
+        "icon": "layers",
+        "entry": "panel/index.ts",
+        "ui": "html"
+      }
+    ],
+    "events": [
+      {
+        "on": "agent.status.changed"
+      },
+      {
+        "on": "workspace.changed"
+      }
+    ],
+    "settings": [
+      {
+        "key": "showAgent",
+        "title": "Show agent logo",
+        "description": "Claude / Cursor logo (or agent name) on each card.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "showWorkspace",
+        "title": "Show workspace",
+        "description": "Workspace name chip on each card.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "showStatus",
+        "title": "Show agent status icon",
+        "description": "Working, waiting for you, done, interrupted, needs permission.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "showTime",
+        "title": "Show time since last change",
+        "description": "How long ago the agent changed status or the chat last printed output.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "showNotes",
+        "title": "Show notes",
+        "description": "The note you wrote on a card, under its title.",
+        "type": "boolean",
+        "default": true
+      },
+      {
+        "key": "language",
+        "title": "Language",
+        "description": "Auto follows Orca's language (Spanish for es-*, English otherwise).",
+        "type": "string",
+        "default": "auto",
+        "enum": [
+          "auto",
+          "en",
+          "es"
+        ],
+        "enumLabels": [
+          "Auto",
+          "English",
+          "Español"
+        ]
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "agent:read"
+    },
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "settings:own"
+    }
+  ]
+}
