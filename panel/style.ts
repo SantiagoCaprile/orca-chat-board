@@ -86,7 +86,7 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
   --st: var(--orca-border);
   background: color-mix(in srgb, var(--st) 7%, var(--orca-background));
   border: 1px solid var(--orca-border); border-left: 3px solid var(--st);
-  border-radius: 5px; padding: 6px 8px; cursor: grab; position: relative;
+  border-radius: 5px; padding: 6px 8px; cursor: pointer; position: relative;
 }
 .card:hover { border-color: color-mix(in srgb, var(--col) 60%, var(--orca-border)); border-left-color: var(--st); }
 .card.st-working { --st: #4f8ff7; }
@@ -129,7 +129,7 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes tip { 0%, 70% { transform: rotate(0); } 85%, 100% { transform: rotate(180deg); } }
 @media (prefers-reduced-motion: reduce) { .status svg { animation: none !important; } }
-.card.dragging { opacity: .4; }
+.card.dragging { opacity: .4; cursor: grabbing; }
 .card.closed { opacity: .65; cursor: default; }
 .card-top { display: flex; gap: 6px; align-items: flex-start; }
 .card-title { flex: 1; font-weight: 500; word-break: break-word; }

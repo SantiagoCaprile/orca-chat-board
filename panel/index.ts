@@ -43,6 +43,8 @@ let renamingColumn: string | null = null
 let confirmDeleteColumn: string | null = null
 let confirmClearArchive = false
 let dragKey: string | null = null
+/** When the last drag ended; a click right after a drop is not an "open". */
+let dragEndedAt = 0
 let flash: string | null = null
 let pendingRender = false
 
@@ -261,7 +263,12 @@ function renderCard(c: CardView): HTMLElement {
 
   if (editingCard === c.key) card.append(renderEditor(c))
 
-  card.ondblclick = () => void focusChat(c)
+  // A short click opens the chat; drags, buttons and the editor's fields keep their own clicks.
+  card.onclick = (e) => {
+    if (editingCard === c.key || Date.now() - dragEndedAt < 300) return
+    if ((e.target as Element).closest('button, input, textarea, a, .card-actions')) return
+    void focusChat(c)
+  }
   card.onkeydown = (e) => {
     if (e.target === card && e.key === 'Enter') void focusChat(c)
   }
@@ -273,6 +280,7 @@ function renderCard(c: CardView): HTMLElement {
   }
   card.ondragend = () => {
     dragKey = null
+    dragEndedAt = Date.now()
     card.classList.remove('dragging')
     clearDropMarks()
   }
