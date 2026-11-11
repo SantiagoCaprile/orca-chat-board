@@ -107,6 +107,7 @@ export function mergeChats(
         ptyId: '',
         closed: false,
         closedAt: null,
+        unseenAt: null,
         addedAt: now
       }
     }
@@ -173,6 +174,38 @@ export function updateCard(prev: BoardState, key: string, patch: { label?: strin
   if (typeof patch.label === 'string') next.label = patch.label.trim().slice(0, 200)
   if (typeof patch.note === 'string') next.note = patch.note.slice(0, 2000)
   return { ...prev, cards: { ...prev.cards, [key]: next } }
+}
+
+/** Sets or clears the unseen mark of the given cards; answers `prev` when nothing changes. */
+export function markUnseen(prev: BoardState, keys: Iterable<string>, at: number | null): BoardState {
+  let cards: Record<string, StoredCard> | null = null
+  for (const key of keys) {
+    const card = prev.cards[key]
+    if (!card || (card.unseenAt ?? null) === at || (at !== null && card.unseenAt)) continue
+    cards ??= { ...prev.cards }
+    cards[key] = { ...card, unseenAt: at }
+  }
+  return cards ? { ...prev, cards } : prev
+}
+
+/** Tab ids shown in each workspace's split groups (`orca terminal list --include-visual-layouts`). */
+export function activeTabsByWorktree(layouts: unknown): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>()
+  if (!Array.isArray(layouts)) return out
+  for (const layout of layouts as { worktreeId?: string; root?: unknown }[]) {
+    if (!layout?.worktreeId) continue
+    const tabs = new Set<string>()
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return
+      if (Array.isArray(node)) return node.forEach(walk)
+      const n = node as Record<string, unknown>
+      if (typeof n.activeTabId === 'string') tabs.add(n.activeTabId)
+      for (const [k, v] of Object.entries(n)) if (k !== 'tabs' && typeof v === 'object') walk(v)
+    }
+    walk(layout.root)
+    out.set(layout.worktreeId, tabs)
+  }
+  return out
 }
 
 /** Forgets every closed chat at once. */

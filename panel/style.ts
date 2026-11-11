@@ -95,6 +95,19 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 .card.st-done { --st: #2fb170; }
 .card.st-interrupted { --st: #e5484d; }
 
+/* Unseen: the agent stopped while you were looking elsewhere (like Orca's yellow tab). */
+.card.unseen {
+  background: color-mix(in srgb, #f5c518 12%, var(--orca-background));
+  border-color: color-mix(in srgb, #f5c518 70%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #f5c518 55%, transparent);
+}
+.card.unseen .card-title { font-weight: 650; }
+.unseen-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: none; background: #f5c518; margin-top: 5px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #f5c518 25%, transparent);
+}
+.column-head .unseen-dot, .column.collapsed .unseen-dot { margin-top: 0; }
+
 .status { width: 16px; height: 16px; flex: none; display: inline-flex; margin-top: 1px; }
 .status svg { width: 100%; height: 100%; }
 .status.working { color: #4f8ff7; }

@@ -2,7 +2,7 @@
 import { afterEach, assert, mockHost, mountWorker, test } from 'orca/testing'
 import * as main from './worker.ts'
 import { setOrcaRunner } from './cli.ts'
-import { cleanTitle, defaultColumns, emptyBoard, mergeChats, moveCard, setColumns, type LiveTerminal } from './board.ts'
+import { activeTabsByWorktree, cleanTitle, defaultColumns, emptyBoard, mergeChats, moveCard, setColumns, type LiveTerminal } from './board.ts'
 import type { BoardView } from './protocol.ts'
 
 const WT = 'repo::/Users/me/toolbox::workspace:1'
@@ -21,19 +21,29 @@ function term(n: number, extra: Partial<LiveTerminal> = {}): LiveTerminal {
   }
 }
 
-function fakeCli(terminals: () => LiveTerminal[], calls: string[][] = []) {
+function fakeCli(terminals: () => LiveTerminal[], calls: string[][] = [], layouts: () => unknown = () => []) {
   setOrcaRunner(async (args) => {
     calls.push(args)
     if (args[0] === 'terminal' && args[1] === 'list') {
-      return JSON.stringify({ ok: true, result: { terminals: terminals() } })
+      return JSON.stringify({ ok: true, result: { terminals: terminals(), visualLayouts: layouts() } })
     }
     if (args[0] === 'terminal' && args[1] === 'switch') return JSON.stringify({ ok: true, result: {} })
     throw new Error(`unexpected ${args.join(' ')}`)
   })
 }
 
-const host = (storage: Record<string, unknown> = {}) =>
-  mockHost({ storage: storage as never, results: { 'agents.list': { agents: [] } } })
+const host = (storage: Record<string, unknown> = {}, focusedHandles: () => string[] = () => []) =>
+  mockHost({
+    storage: storage as never,
+    results: {
+      'agents.list': { agents: [] },
+      'workspace.readContext': () => ({
+        branch: '',
+        displayName: 'toolbox',
+        terminals: focusedHandles().map((id) => ({ id }))
+      })
+    }
+  })
 
 afterEach(() => setOrcaRunner(null))
 
@@ -205,4 +215,53 @@ test('clearing the archive forgets only closed chats', async () => {
   const v = (await worker.request('archive.clear', {})) as BoardView
   assert.deepEqual(v.cards.map((c) => c.key), ['tab1'])
   await worker.deactivate()
+})
+
+test('a chat that finishes while you look elsewhere is marked unseen until you see it', async () => {
+  let activeTab = 'tab2'
+  fakeCli(
+    () => [term(1), term(2)],
+    [],
+    () => [{ worktreeId: WT, worktreePath: '/Users/me/toolbox', root: { type: 'group', activeTabId: activeTab, tabs: [] } }]
+  )
+  const worker = await mountWorker(main, { host: host({}, () => ['term_1', 'term_2']) })
+  await worker.request('board.get', { refresh: true })
+  const status = (terminalId: string, state: 'working' | 'done', receivedAt: number) =>
+    worker.emit('agent.status.changed', { workspaceId: null, paneKey: terminalId, terminalId, state, receivedAt })
+  const unseen = async () =>
+    ((await worker.request('board.get', {})) as BoardView).cards.filter((c) => c.unseenAt).map((c) => c.key)
+
+  await status('term_1', 'working', 10)
+  await status('term_1', 'done', 20) // tab1 is not on screen
+  await status('term_2', 'working', 10)
+  await status('term_2', 'done', 20) // tab2 is on screen
+  assert.deepEqual(await unseen(), ['tab1'])
+
+  activeTab = 'tab1' // you switch to it in Orca
+  await worker.request('seen.check', {})
+  assert.deepEqual(await unseen(), [])
+
+  activeTab = 'tab2'
+  await status('term_1', 'working', 30)
+  await status('term_1', 'done', 40)
+  assert.deepEqual(await unseen(), ['tab1'])
+  await worker.request('chat.focus', { key: 'tab1' }) // opened from the board
+  await new Promise((r) => setTimeout(r, 10))
+  assert.deepEqual(await unseen(), [])
+
+  await status('term_1', 'working', 50)
+  await status('term_1', 'done', 60)
+  await status('term_1', 'working', 70) // you answered it: working again clears the mark
+  assert.deepEqual(await unseen(), [])
+  await worker.deactivate()
+})
+
+test('active tabs are read from every split group of a workspace', () => {
+  const tabs = activeTabsByWorktree([
+    {
+      worktreeId: 'w1',
+      root: { type: 'split', children: [{ type: 'group', activeTabId: 'a', tabs: [] }, { type: 'group', activeTabId: 'b', tabs: [] }] }
+    }
+  ])
+  assert.deepEqual([...(tabs.get('w1') ?? [])].sort(), ['a', 'b'])
 })

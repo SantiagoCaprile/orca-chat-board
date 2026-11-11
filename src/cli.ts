@@ -54,9 +54,12 @@ async function runJson(args: string[]): Promise<unknown> {
   return parsed.result
 }
 
-export async function listTerminals(): Promise<LiveTerminal[]> {
-  const result = (await runJson(['terminal', 'list'])) as { terminals?: LiveTerminal[] }
-  return result.terminals ?? []
+export async function listTerminals(): Promise<{ terminals: LiveTerminal[]; layouts: unknown }> {
+  const result = (await runJson(['terminal', 'list', '--include-visual-layouts'])) as {
+    terminals?: LiveTerminal[]
+    visualLayouts?: unknown
+  }
+  return { terminals: result.terminals ?? [], layouts: result.visualLayouts ?? [] }
 }
 
 export async function switchTerminal(handle: string): Promise<void> {

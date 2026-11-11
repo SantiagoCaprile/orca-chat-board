@@ -3,9 +3,11 @@
 import type { OrcaWorkerApi } from 'orca/worker'
 import type { AgentState, BoardState, BoardView, CardView } from './protocol.ts'
 import {
+  activeTabsByWorktree,
   chatsOf,
   clearArchived,
   deleteCard,
+  markUnseen,
   mergeChats,
   moveCard,
   normalizeBoard,
@@ -25,6 +27,8 @@ export default function activate(orca: OrcaWorkerApi): void {
   let lastOutput: Record<string, number> = {}
   let lastError: string | null = null
   let refreshedAt = 0
+  /** Tab ids on screen in the focused workspace at the last listing. */
+  let visible = new Set<string>()
 
   // Every read-modify-write of storage goes through this queue.
   let queue: Promise<unknown> = Promise.resolve()
@@ -72,14 +76,31 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
   }
 
+  /** Tabs on screen: the active tab of each split group in the focused workspace. */
+  async function visibleTabs(terminals: { handle: string; worktreeId: string }[], layouts: unknown): Promise<Set<string>> {
+    try {
+      const ctx = await orca.host.call('workspace.readContext')
+      const ids = new Set((ctx?.terminals ?? []).map((t) => t.id))
+      const focused = terminals.find((t) => ids.has(t.handle))?.worktreeId
+      return (focused && activeTabsByWorktree(layouts).get(focused)) || new Set()
+    } catch (err) {
+      orca.log(`workspace.readContext failed: ${(err as Error).message}`)
+      return new Set()
+    }
+  }
+
+  const keyOfHandle = (handle: string) => Object.keys(handles).find((k) => handles[k] === handle) ?? null
+
   async function refresh(): Promise<BoardState> {
     let state = await loadBoard()
     try {
-      const chats = chatsOf(await listTerminals())
-      const merged = mergeChats(state, chats, Date.now())
+      const { terminals, layouts } = await listTerminals()
+      const merged = mergeChats(state, chatsOf(terminals), Date.now())
       state = merged.state
       handles = merged.handles
       lastOutput = merged.lastOutput
+      visible = await visibleTabs(terminals, layouts)
+      state = markUnseen(state, visible, null)
       lastError = null
       refreshedAt = Date.now()
       await orca.storage.set(BOARD_KEY, state)
@@ -121,6 +142,17 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('card.delete', ({ key }) => mutate((s) => deleteCard(s, key)))
   orca.panels.handle('archive.clear', () => mutate(clearArchived))
 
+  orca.panels.handle('seen.check', () =>
+    serial(async () => {
+      const before = await loadBoard()
+      const state = await refresh()
+      const v = await view(state)
+      const cleared = Object.values(before.cards).some((c) => c.unseenAt && !state.cards[c.key]?.unseenAt)
+      if (cleared) orca.panels.post('board.changed', v)
+      return v
+    })
+  )
+
   orca.panels.handle('chat.focus', async ({ key }) => {
     let handle = handles[key]
     if (!handle) {
@@ -130,6 +162,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     if (!handle) return { ok: false, error: 'closed' }
     try {
       await switchTerminal(handle)
+      void mutate((s) => markUnseen(s, [key], null))
       return { ok: true, error: null }
     } catch (err) {
       // The handle may be stale (terminal restarted): list again and retry once.
@@ -171,6 +204,25 @@ export default function activate(orca: OrcaWorkerApi): void {
         outcome
       }
       await orca.storage.set(STATUS_KEY, status)
+
+      // Unseen mark: set when an agent stops working while you are not looking at it,
+      // cleared as soon as it works again.
+      const needsYou = prev?.state === 'working' && state !== 'working'
+      if (state !== 'working' && !needsYou) return
+      let board = await refresh()
+      const key = keyOfHandle(terminalId)
+      if (!key) return
+      const next =
+        state === 'working'
+          ? markUnseen(board, [key], null)
+          : visible.has(key)
+            ? board
+            : markUnseen(board, [key], receivedAt)
+      if (next !== board) {
+        board = next
+        await orca.storage.set(BOARD_KEY, board)
+      }
+      orca.panels.post('board.changed', await view(board))
     })
   )
 }

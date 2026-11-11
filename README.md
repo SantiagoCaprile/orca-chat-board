@@ -10,6 +10,7 @@ A kanban of your **chats**, meaning terminal tabs running an agent (Claude, Curs
   - interrupted: red cross
   - needs permission: alert
 - Each card shows the agent's logo for all 45 agents Orca knows, using the same icons Orca shows. An agent that Orca adds later gets its initial.
+- When an agent stops working while you are looking at another chat, its card turns yellow with a dot, like Orca's unread tab. Its column header gets a dot too. The mark clears when you open the chat, from Orca or from the board, or when the agent starts working again.
 - Double-click, Enter or ↗ opens the chat. ✎ gives the card its own name and a note. Enter saves, and Shift+Enter adds a new line to the note.
 - A chat you close goes to **Archived** and keeps its column and note. Remove it from there with ✕.
 - The UI follows Orca's language: Spanish for `es-*`, English otherwise.

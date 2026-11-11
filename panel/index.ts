@@ -181,13 +181,19 @@ function renderCard(c: CardView): HTMLElement {
   const card = el(
     'div',
     {
-      class: `card${c.closed ? ' closed' : kind ? ` st-${kind}` : ''}`,
+      class: `card${c.closed ? ' closed' : kind ? ` st-${kind}` : ''}${c.unseenAt && !c.closed ? ' unseen' : ''}`,
       draggable: !c.closed && editingCard !== c.key ? 'true' : false,
       tabindex: '0',
       'data-key': c.key,
       title: c.closed ? '' : t.openHint
     },
-    el('div', { class: 'card-top' }, el('span', { class: 'card-title' }, titleOf(c)), stateBadge),
+    el(
+      'div',
+      { class: 'card-top' },
+      c.unseenAt && !c.closed ? el('span', { class: 'unseen-dot', title: t.unseen, role: 'img', 'aria-label': t.unseen }) : null,
+      el('span', { class: 'card-title' }, titleOf(c)),
+      stateBadge
+    ),
     el(
       'div',
       { class: 'card-meta' },
@@ -332,7 +338,9 @@ function wireDrop(column: HTMLElement, body: HTMLElement | null, col: Column): v
   }
 }
 
-function renderCollapsed(col: Column, i: number, columns: Column[], count: number): HTMLElement {
+function renderCollapsed(col: Column, i: number, columns: Column[], cards: CardView[]): HTMLElement {
+  const count = cards.length
+  const unseen = cards.filter((c) => c.unseenAt).length
   const label = t.expand(col.title, count)
   const strip = el(
     'section',
@@ -345,6 +353,7 @@ function renderCollapsed(col: Column, i: number, columns: Column[], count: numbe
       style: `--col: ${COLUMN_COLORS[i % COLUMN_COLORS.length]}`
     },
     el('span', { class: 'count' }, String(count)),
+    unseen ? el('span', { class: 'unseen-dot', title: t.columnUnseen(unseen) }) : null,
     el('span', { class: 'strip-title' }, col.title)
   )
   strip.onclick = () => setCollapsed(col, columns, false)
@@ -359,7 +368,7 @@ function renderCollapsed(col: Column, i: number, columns: Column[], count: numbe
 }
 
 function renderColumn(col: Column, i: number, columns: Column[], cards: CardView[]): HTMLElement {
-  if (col.collapsed) return renderCollapsed(col, i, columns, cards.length)
+  if (col.collapsed) return renderCollapsed(col, i, columns, cards)
   const head = el('div', { class: 'column-head' })
   if (renamingColumn === col.id) {
     const input = el('input', { 'aria-label': t.columnName })
@@ -388,7 +397,10 @@ function renderColumn(col: Column, i: number, columns: Column[], cards: CardView
     }
     const collapse = el('button', { class: 'ghost', title: t.collapse, 'aria-label': t.collapse }, '⇤')
     collapse.onclick = () => setCollapsed(col, columns, true)
-    head.append(title, el('span', { class: 'count' }, String(cards.length)), collapse)
+    const unseen = cards.filter((c) => c.unseenAt).length
+    head.append(title)
+    if (unseen) head.append(el('span', { class: 'unseen-dot', title: t.columnUnseen(unseen) }))
+    head.append(el('span', { class: 'count' }, String(cards.length)), collapse)
     const swap = (to: number) => {
       const next = [...columns]
       ;[next[i], next[to]] = [next[to], next[i]]
@@ -548,6 +560,11 @@ function boot(): void {
     card.outcome = outcome
     render()
   })
+  // While some chat is unseen, check every few seconds whether you opened it in Orca.
+  setInterval(() => {
+    if (document.visibilityState !== 'visible' || !view?.cards.some((c) => c.unseenAt && !c.closed)) return
+    void orca.plugin.request('seen.check', {}).then((v) => setView(v as BoardView), () => undefined)
+  }, 4000)
   // Relative times ("5m") tick locally; this never calls Orca.
   setInterval(() => render(), 30_000)
 

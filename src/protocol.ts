@@ -26,6 +26,8 @@ export type StoredCard = {
   ptyId: string
   closed: boolean
   closedAt: number | null
+  /** When the agent finished (or started waiting) while you were not looking; null once seen. */
+  unseenAt?: number | null
   addedAt: number
 }
 
@@ -66,6 +68,8 @@ declare module 'orca' {
     'card.update': { input: CardPatch; output: BoardView }
     /** Forgets a card; only closed chats can be deleted. */
     'card.delete': { input: { key: string }; output: BoardView }
+    /** Re-checks which chats are on screen and clears their unseen mark. */
+    'seen.check': { input: Record<string, never>; output: BoardView }
     /** Forgets every closed chat. */
     'archive.clear': { input: Record<string, never>; output: BoardView }
     /** Shows the chat's terminal tab in Orca. */
