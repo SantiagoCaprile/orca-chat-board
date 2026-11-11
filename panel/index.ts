@@ -244,7 +244,7 @@ function renderCard(c: CardView): HTMLElement {
 function renderEditor(c: CardView): HTMLElement {
   const label = el('input', { placeholder: c.title || t.name, 'aria-label': t.cardName })
   label.value = c.label
-  const note = el('textarea', { rows: '3', placeholder: t.note, 'aria-label': t.note })
+  const note = el('textarea', { rows: '3', placeholder: t.noteHint, 'aria-label': t.note })
   note.value = c.note
   const save = async () => {
     editingCard = null
@@ -256,7 +256,8 @@ function renderEditor(c: CardView): HTMLElement {
   }
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') cancel()
-    if (e.key === 'Enter' && (e.target === label || e.metaKey || e.ctrlKey)) {
+    // Enter saves right away in both fields; Shift+Enter adds a line break to the note.
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault()
       void save()
     }
