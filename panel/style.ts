@@ -115,6 +115,8 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 .card-meta { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap;
   color: var(--orca-muted-foreground); font-size: 11px; }
 .card-meta:empty { display: none; }
+/* Time sits at the right edge, under the status icon. */
+.card-meta .time { margin-left: auto; font-variant-numeric: tabular-nums; }
 .chip { --c: #8b95a5; border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); border-radius: 3px; padding: 0 4px;
   background: color-mix(in srgb, var(--c) 14%, transparent); color: color-mix(in srgb, var(--c) 65%, var(--orca-foreground)); }
 .logo { width: 15px; height: 15px; display: inline-flex; flex: none; border-radius: 3px; }

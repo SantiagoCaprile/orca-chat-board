@@ -193,7 +193,7 @@ function renderCard(c: CardView): HTMLElement {
       c.agent && show.agent ? agentBadge(c.agent) : null,
       c.worktreeName && show.workspace ? el('span', { class: 'chip ws' }, c.worktreeName) : null,
       c.label && c.title && c.label !== c.title ? el('span', {}, c.title) : null,
-      when && show.time ? el('span', {}, ago(when)) : null
+      when && show.time ? el('span', { class: 'time' }, ago(when)) : null
     ),
     c.note && show.notes && editingCard !== c.key ? el('div', { class: 'note' }, c.note) : null
   )
