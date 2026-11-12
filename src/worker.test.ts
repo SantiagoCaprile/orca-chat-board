@@ -443,3 +443,31 @@ test('Orca chat tabs (no terminal) get cards from `orca worktree ps`', async () 
   assert.equal(v.cards.find((c) => c.key === chatTab)?.unseenAt ?? null, null)
   await worker.deactivate()
 })
+
+test('hover preview answers the last prompt and reply from Orca, on demand', async () => {
+  setOrcaRunner(async (args) => {
+    if (args[1] === 'list') return JSON.stringify({ ok: true, result: { terminals: [term(1)], visualLayouts: [] } })
+    if (args[1] === 'ps')
+      return JSON.stringify({
+        ok: true,
+        result: {
+          worktrees: [
+            {
+              worktreeId: WT,
+              path: '/Users/me/toolbox',
+              agents: [
+                { paneKey: 'tab1:sub', parentPaneKey: 'tab1:leaf', state: 'working', prompt: 'subagent', lastAssistantMessage: 'no' },
+                { paneKey: 'tab1:leaf', parentPaneKey: null, state: 'done', prompt: 'fix the bug', lastAssistantMessage: 'Fixed it.', updatedAt: 9 }
+              ]
+            }
+          ]
+        }
+      })
+    return JSON.stringify({ ok: true, result: {} })
+  })
+  const worker = await mountWorker(main, { host: host() })
+  assert.deepEqual(await worker.request('chat.preview', { key: 'tab1' }), { prompt: 'fix the bug', message: 'Fixed it.', at: 9 })
+  assert.deepEqual(await worker.request('chat.preview', { key: 'nope' }), { prompt: null, message: null, at: null })
+  assert.deepEqual(worker.host.data().storage, {}, 'nothing is stored')
+  await worker.deactivate()
+})

@@ -96,6 +96,13 @@
         "default": true
       },
       {
+        "key": "showPreview",
+        "title": "Show a preview on hover",
+        "description": "Hovering a card shows your last message and the agent's last reply, read from Orca at that moment.",
+        "type": "boolean",
+        "default": true
+      },
+      {
         "key": "language",
         "title": "Language",
         "description": "Auto follows Orca's language (Spanish for es-*, English otherwise).",

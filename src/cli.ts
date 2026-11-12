@@ -224,6 +224,7 @@ export type PsAgent = {
   displayName?: string | null
   conversationName?: string | null
   prompt?: string | null
+  lastAssistantMessage?: string | null
   hasLivePty?: boolean | null
   interrupted?: boolean
   stateStartedAt?: number

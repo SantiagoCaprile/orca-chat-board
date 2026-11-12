@@ -257,6 +257,22 @@ export default function activate(orca: OrcaWorkerApi): void {
     })
   )
 
+  // Hover preview: asked on demand, answered from Orca's agent record, kept nowhere.
+  orca.panels.handle('chat.preview', async ({ key }) => {
+    const none = { prompt: null, message: null, at: null }
+    try {
+      for (const w of await listAgents()) {
+        for (const a of w.agents ?? []) {
+          if (a.parentPaneKey || a.paneKey.split(':')[0] !== key) continue
+          return { prompt: a.prompt || null, message: a.lastAssistantMessage || null, at: a.updatedAt ?? null }
+        }
+      }
+    } catch (err) {
+      orca.log(`preview failed: ${(err as Error).message.split('\n')[0]}`)
+    }
+    return none
+  })
+
   orca.panels.handle('chat.focus', async ({ key }) => {
     let handle = handles[key]
     if (!handle) {

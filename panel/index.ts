@@ -6,6 +6,7 @@ import { AGENT_LOGOS, AGENT_NAMES } from './logos.ts'
 import { STATUS_ICON, type StatusKind } from './icons.ts'
 import { locale, setLanguage, t } from './i18n.ts'
 import { isStale } from '../src/monitor.ts'
+import { hidePreview, schedulePreview } from './preview.ts'
 
 const INTERRUPTED = new Set(['interruption', 'failure', 'cancellation'])
 
@@ -49,7 +50,7 @@ let flash: string | null = null
 let pendingRender = false
 
 /** What each card shows; mirrors the plugin's settings (Settings → Plugins → Chat Board). */
-const show = { agent: true, workspace: true, status: true, time: true, notes: true }
+const show = { agent: true, workspace: true, status: true, time: true, notes: true, preview: true }
 
 async function loadSettings(): Promise<void> {
   try {
@@ -59,6 +60,7 @@ async function loadSettings(): Promise<void> {
     show.status = s.showStatus !== false
     show.time = s.showTime !== false
     show.notes = s.showNotes !== false
+    show.preview = s.showPreview !== false
     setLanguage(s.language)
   } catch {
     // Settings unavailable (older approval): keep everything visible.
@@ -272,12 +274,18 @@ function renderCard(c: CardView): HTMLElement {
   card.onclick = (e) => {
     if (editingCard === c.key || Date.now() - dragEndedAt < 300) return
     if ((e.target as Element).closest('button, input, textarea, a, .card-actions')) return
+    hidePreview()
     void focusChat(c)
   }
   card.onkeydown = (e) => {
     if (e.target === card && e.key === 'Enter') void focusChat(c)
   }
+  card.onmouseenter = () => {
+    if (show.preview && !c.closed && !dragKey && editingCard !== c.key) schedulePreview(c.key, card)
+  }
+  card.onmouseleave = () => hidePreview()
   card.ondragstart = (e) => {
+    hidePreview()
     dragKey = c.key
     e.dataTransfer?.setData('text/plain', c.key)
     if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'

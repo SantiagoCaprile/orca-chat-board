@@ -92,6 +92,11 @@ declare module 'orca' {
     'seen.check': { input: Record<string, never>; output: BoardView }
     /** Forgets every closed chat. */
     'archive.clear': { input: Record<string, never>; output: BoardView }
+    /** Your last prompt and the agent's last message, read from Orca when asked (never stored). */
+    'chat.preview': {
+      input: { key: string }
+      output: { prompt: string | null; message: string | null; at: number | null }
+    }
     /** Shows the chat's terminal tab in Orca. */
     'chat.focus': { input: { key: string }; output: { ok: boolean; error: 'closed' | string | null } }
   }

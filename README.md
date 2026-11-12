@@ -28,6 +28,7 @@ Orca lists the access the plugin asks for (see [Permissions](#permissions)) and 
 - Each card shows the agent's logo. All 45 agents Orca knows have one, the same icons Orca uses.
 
 **Working with chats**
+- Hover a card for a moment to see your last message and the agent's last reply.
 - Click a card to open its chat. Dragging moves the card instead.
 - ✎ renames the chat's Orca tab and edits the card's note. Enter saves; Shift+Enter adds a new line to the note.
 - When you start talking to a chat in **Backlog**, its card moves to **In progress**. You can turn this off.
@@ -49,6 +50,7 @@ Under **Settings → Plugins → Chat Board**:
 | Show agent status icon | on |
 | Show time since last change | on |
 | Show notes | on |
+| Show a preview on hover | on |
 | Language (Auto, English, Español) | Auto |
 
 ## Permissions
@@ -64,7 +66,7 @@ Orca asks you to approve these when you install the plugin. Here is what each on
 | `settings:own` | The plugin's options in Orca's Settings. |
 | Hook `agent.tool.after` (observe only) | Detects loops and watchers. Orca hands this hook every tool call an agent makes. The plugin looks only at `ScheduleWakeup`, `CronCreate`/`CronDelete`, `Monitor` and `TaskStop`, keeping their timing and description, and drops every other call without storing it. The hook never blocks or changes a call. |
 
-The plugin makes no network requests and sends nothing anywhere. Some of what Orca's CLI returns, such as a preview of each terminal's latest output and the agent's last message, prompt or tool input, is never stored or shown by the plugin; it keeps only titles, agent type and status.
+The plugin makes no network requests and sends nothing anywhere. Some of what Orca's CLI returns, such as a preview of each terminal's latest output and the agent's last message, prompt or tool input, is never stored or shown by the plugin; it keeps only titles, agent type and status. The hover preview reads your last prompt and the agent's last reply from Orca when you hover a card, shows them, and keeps them for a few seconds in memory only.
 
 ## Limitations
 
