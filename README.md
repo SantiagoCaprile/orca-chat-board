@@ -24,6 +24,21 @@ A kanban of your **chats**, meaning terminal tabs running an agent (Claude, Curs
 - `src/board.ts` holds the pure logic: merging chats, moving cards and editing columns. When a chat comes back with a new tab id (after an Orca restart), it is matched back to its card by pty id, or by title and workspace.
 - `panel/index.ts` is the HTML panel and uses native drag & drop. `panel/i18n.ts` holds the strings and `panel/icons.ts` the status icons.
 
+## Permissions
+
+Orca asks you to approve these when you install the plugin. Here is what each one is used for:
+
+| Permission | What the plugin does with it |
+|---|---|
+| **Runs its own code** (Node worker) | Lists your chats in every workspace, opens a chat and renames its tab. The worker only ever runs three Orca CLI commands: `orca terminal list`, `orca terminal switch` and `orca terminal rename`. The plugin API alone sees only the focused workspace and cannot open or rename tabs. |
+| `storage:own` | Saves the board: columns, card positions, notes, agent status and monitors. All of it stays in the plugin's own folder. |
+| `agent:read` | Agent status icons, the yellow "not seen yet" mark, and moving a Backlog card when you start a chat. |
+| `workspace:read` | Knows which tab you are looking at, for the "not seen yet" mark and the open-chat highlight, and refreshes the board when chats open or close. |
+| `settings:own` | The plugin's options in Orca's Settings. |
+| Hook `agent.tool.after` (observe only) | Detects loops and watchers. Orca hands this hook every tool call an agent makes. The plugin looks only at `ScheduleWakeup`, `CronCreate`/`CronDelete`, `Monitor` and `TaskStop`, keeping their timing and description, and drops every other call without storing it. The hook never blocks or changes a call. |
+
+The plugin makes no network requests and sends nothing anywhere. It also does not read your terminals' output; the board shows only the titles Orca lists.
+
 ## Development
 
 ```sh
