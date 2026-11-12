@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Type-check
+        run: npx -y -p typescript@5.6.3 tsc -p tsconfig.ci.json
+      - name: Tests that need no Orca host
+        run: node --experimental-strip-types --no-warnings --import ./ci/register.mjs --test src/cli.test.ts src/monitor.test.ts

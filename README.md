@@ -90,6 +90,8 @@ npx -p typescript tsc -p .        # type-check
 orca plugin shot local.chat-board --panel board --width 900
 ```
 
+CI (GitHub Actions, Linux, macOS and Windows) type-checks against a snapshot of Orca's typings and runs the tests that need no Orca host. See [`ci/`](ci/README.md).
+
 ## Credits
 
 The agent logos are the ones Orca ships for each agent. They belong to their respective owners.
