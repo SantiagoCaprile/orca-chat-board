@@ -70,7 +70,8 @@ export default function activate(orca: OrcaWorkerApi): void {
         stateAt: s?.at ?? null,
         outcome: s?.outcome ?? null,
         lastOutputAt: lastOutput[c.key] ?? null,
-        monitor: m ? monitorView(m, now) : null
+        monitor: m ? monitorView(m, now) : null,
+        active: !c.closed && visible.has(c.key)
       }
     })
     return { columns: state.columns, cards, refreshedAt, error: lastError }
@@ -194,10 +195,12 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('seen.check', () =>
     serial(async () => {
       const before = await loadBoard()
+      const wasVisible = visible
       const state = await refresh()
       const v = await view(state)
       const cleared = Object.values(before.cards).some((c) => c.unseenAt && !state.cards[c.key]?.unseenAt)
-      if (cleared) orca.panels.post('board.changed', v)
+      const moved = wasVisible.size !== visible.size || [...visible].some((k) => !wasVisible.has(k))
+      if (cleared || moved) orca.panels.post('board.changed', v)
       return v
     })
   )
@@ -211,6 +214,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     if (!handle) return { ok: false, error: 'closed' }
     try {
       await switchTerminal(handle)
+      visible = new Set([key])
       void mutate((s) => markUnseen(s, [key], null))
       return { ok: true, error: null }
     } catch (err) {

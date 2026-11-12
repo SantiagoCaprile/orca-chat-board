@@ -46,6 +46,8 @@ export type CardView = StoredCard & {
   outcome: string | null
   lastOutputAt: number | null
   monitor: MonitorInfo | null
+  /** The chat's tab is the one on screen in the focused workspace. */
+  active: boolean
 }
 
 export type BoardView = {
@@ -84,7 +86,7 @@ declare module 'orca' {
     'card.update': { input: CardPatch; output: BoardView }
     /** Forgets a card; only closed chats can be deleted. */
     'card.delete': { input: { key: string }; output: BoardView }
-    /** Re-checks which chats are on screen and clears their unseen mark. */
+    /** Re-checks which chats are on screen: open-chat highlight, and clears their unseen mark. */
     'seen.check': { input: Record<string, never>; output: BoardView }
     /** Forgets every closed chat. */
     'archive.clear': { input: Record<string, never>; output: BoardView }

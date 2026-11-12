@@ -363,3 +363,21 @@ test('talking to a Backlog chat moves it to In progress, unless the setting is o
   assert.equal(await columnOf(w2, 'tab1'), 'backlog')
   await w2.deactivate()
 })
+
+test('the chat on screen is marked active', async () => {
+  let activeTab = 'tab2'
+  fakeCli(
+    () => [term(1), term(2)],
+    [],
+    () => [{ worktreeId: WT, root: { type: 'group', activeTabId: activeTab, tabs: [] } }]
+  )
+  const worker = await mountWorker(main, { host: host({}, () => ['term_1', 'term_2']) })
+  const active = async () =>
+    ((await worker.request('seen.check', {})) as BoardView).cards.filter((c) => c.active).map((c) => c.key)
+  await worker.request('board.get', { refresh: true })
+  assert.deepEqual(await active(), ['tab2'])
+  activeTab = 'tab1'
+  assert.deepEqual(await active(), ['tab1'])
+  assert.equal(worker.posts.some((p) => p.event === 'board.changed'), true) // the switch was pushed to panels
+  await worker.deactivate()
+})

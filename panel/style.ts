@@ -97,6 +97,14 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 .card.st-monitoring { --st: #4f8ff7; }
 .card.st-stale { --st: #8b95a5; }
 
+/* The chat on screen in Orca: a ring in the column's colour. */
+.card.active {
+  border-color: var(--col);
+  border-left-color: var(--st);
+  box-shadow: 0 0 0 1px var(--col), 0 0 10px -2px color-mix(in srgb, var(--col) 70%, transparent);
+  background: color-mix(in srgb, var(--col) 14%, var(--orca-background));
+}
+
 /* Unseen: the agent stopped while you were looking elsewhere (like Orca's yellow tab). */
 .card.unseen {
   background: color-mix(in srgb, #f5c518 12%, var(--orca-background));

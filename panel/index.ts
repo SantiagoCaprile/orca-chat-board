@@ -176,6 +176,10 @@ async function focusChat(c: CardView): Promise<void> {
   if (c.closed) return
   const r = await request<{ ok: boolean; error: string | null }>('chat.focus', { key: c.key })
   if (r && !r.ok) showFlash(r.error === 'closed' ? t.chatClosed : (r.error ?? t.focusFailed))
+  else if (r?.ok && view) {
+    for (const x of view.cards) x.active = x.key === c.key
+    render()
+  }
 }
 
 function moveLocal(key: string, column: string, index: number): void {
@@ -214,11 +218,11 @@ function renderCard(c: CardView): HTMLElement {
   const card = el(
     'div',
     {
-      class: `card${c.closed ? ' closed' : kind ? ` st-${kind}` : ''}${c.unseenAt && !c.closed ? ' unseen' : ''}`,
+      class: `card${c.closed ? ' closed' : kind ? ` st-${kind}` : ''}${c.unseenAt && !c.closed ? ' unseen' : ''}${c.active ? ' active' : ''}`,
       draggable: !c.closed && editingCard !== c.key ? 'true' : false,
       tabindex: '0',
       'data-key': c.key,
-      title: c.closed ? '' : t.openHint
+      title: c.closed ? '' : c.active ? t.openNow : t.openHint
     },
     el(
       'div',
@@ -609,11 +613,19 @@ function boot(): void {
     card.outcome = outcome
     render()
   })
-  // While some chat is unseen, check every few seconds whether you opened it in Orca.
+  // Orca has no event for switching tabs: while the panel is on screen, ask every few seconds which
+  // chat is open (open-chat highlight) and whether an unseen chat was opened. Redraw only on change.
+  const liveKey = (v: BoardView | null) =>
+    (v?.cards ?? []).map((c) => `${c.key}:${c.active ? 1 : 0}:${c.unseenAt ? 1 : 0}`).sort().join('|')
   setInterval(() => {
-    if (document.visibilityState !== 'visible' || !view?.cards.some((c) => c.unseenAt && !c.closed)) return
-    void orca.plugin.request('seen.check', {}).then((v) => setView(v as BoardView), () => undefined)
-  }, 4000)
+    if (document.visibilityState !== 'visible' || !view) return
+    void orca.plugin.request('seen.check', {}).then(
+      (v) => {
+        if (liveKey(v as BoardView) !== liveKey(view)) setView(v as BoardView)
+      },
+      () => undefined
+    )
+  }, 3000)
   // Relative times ("5m") tick locally; this never calls Orca.
   setInterval(() => render(), 30_000)
 
