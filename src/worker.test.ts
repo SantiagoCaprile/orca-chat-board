@@ -28,6 +28,7 @@ function fakeCli(terminals: () => LiveTerminal[], calls: string[][] = [], layout
       return JSON.stringify({ ok: true, result: { terminals: terminals(), visualLayouts: layouts() } })
     }
     if (args[0] === 'terminal' && (args[1] === 'switch' || args[1] === 'rename')) return JSON.stringify({ ok: true, result: {} })
+    if (args[0] === 'worktree' && args[1] === 'ps') return JSON.stringify({ ok: true, result: { worktrees: [] } })
     throw new Error(`unexpected ${args.join(' ')}`)
   })
 }
@@ -379,5 +380,66 @@ test('the chat on screen is marked active', async () => {
   activeTab = 'tab1'
   assert.deepEqual(await active(), ['tab1'])
   assert.equal(worker.posts.some((p) => p.event === 'board.changed'), true) // the switch was pushed to panels
+  await worker.deactivate()
+})
+
+test('Orca chat tabs (no terminal) get cards from `orca worktree ps`', async () => {
+  const chatTab = 'structured-agent-session-claude_abc'
+  let unread = true
+  const calls: string[][] = []
+  const ps = () => [
+    {
+      worktreeId: WT,
+      path: '/Users/me/toolbox',
+      agents: [
+        // a terminal chat with no status event yet: ps fills it
+        { paneKey: 'tab1:leaf', parentPaneKey: null, state: 'waiting', agentType: 'claude', hasLivePty: true, stateStartedAt: 50 },
+        // a chat tab
+        {
+          paneKey: `${chatTab}:leaf`,
+          parentPaneKey: null,
+          state: 'done',
+          agentType: 'claude',
+          conversationName: 'Plan the release',
+          hasLivePty: null,
+          stateStartedAt: 70,
+          updatedAt: 80,
+          activity: { unread }
+        },
+        // its subagent: ignored
+        { paneKey: `${chatTab}:sub`, parentPaneKey: `${chatTab}:leaf`, state: 'working', agentType: 'claude' }
+      ]
+    }
+  ]
+  setOrcaRunner(async (args) => {
+    calls.push(args)
+    if (args[1] === 'list') return JSON.stringify({ ok: true, result: { terminals: [term(1)], visualLayouts: [] } })
+    if (args[0] === 'worktree' && args[1] === 'ps') return JSON.stringify({ ok: true, result: { worktrees: ps() } })
+    return JSON.stringify({ ok: true, result: {} })
+  })
+  const worker = await mountWorker(main, { host: host() })
+  let v = (await worker.request('board.get', { refresh: true })) as BoardView
+  const chat = v.cards.find((c) => c.key === chatTab)!
+  assert.equal(chat.title, 'Plan the release')
+  assert.equal(chat.sessionId, 'claude_abc')
+  assert.equal(chat.state, 'done')
+  assert.ok(chat.unseenAt, "Orca's unread flag marks it unseen")
+  assert.equal(v.cards.find((c) => c.key === 'tab1')?.state, 'waiting')
+  assert.equal(v.cards.length, 2)
+
+  // light refresh (every 3 s) keeps the chat card
+  v = (await worker.request('seen.check', {})) as BoardView
+  assert.equal(v.cards.find((c) => c.key === chatTab)?.closed, false)
+
+  // opening it shows its workspace; renaming uses `orca chat rename`
+  assert.deepEqual(await worker.request('chat.focus', { key: chatTab }), { ok: true, error: 'chat-workspace' })
+  assert.deepEqual(calls.find((c) => c[1] === 'activate'), ['worktree', 'activate', '--worktree', `id:${WT}`, '--json'])
+  await worker.request('card.update', { key: chatTab, label: 'Release plan' })
+  assert.deepEqual(calls.find((c) => c[0] === 'chat'), ['chat', 'rename', '--session', 'claude_abc', '--name', 'Release plan', '--json'])
+
+  // read in Orca: the mark clears on the next full listing
+  unread = false
+  v = (await worker.request('board.get', { refresh: true })) as BoardView
+  assert.equal(v.cards.find((c) => c.key === chatTab)?.unseenAt ?? null, null)
   await worker.deactivate()
 })

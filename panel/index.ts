@@ -176,6 +176,7 @@ async function focusChat(c: CardView): Promise<void> {
   if (c.closed) return
   const r = await request<{ ok: boolean; error: string | null }>('chat.focus', { key: c.key })
   if (r && !r.ok) showFlash(r.error === 'closed' ? t.chatClosed : (r.error ?? t.focusFailed))
+  else if (r?.ok && r.error === 'chat-workspace') showFlash(t.chatTabOpened)
   else if (r?.ok && view) {
     for (const x of view.cards) x.active = x.key === c.key
     render()

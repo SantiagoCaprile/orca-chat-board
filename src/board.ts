@@ -13,6 +13,8 @@ export type LiveTerminal = {
   lastOutputAt?: number | null
   /** The tab's title as Orca shows it (custom name when renamed), from the visual layouts. */
   tabTitle?: string | null
+  /** An Orca chat tab (no terminal): its chat session id. */
+  sessionId?: string | null
 }
 
 const COLUMN_TITLES = {
@@ -122,6 +124,7 @@ export function mergeChats(
       worktreeId: t.worktreeId,
       worktreeName: basename(t.worktreePath),
       ptyId: t.ptyId,
+      sessionId: t.sessionId ?? null,
       closed: false,
       closedAt: null
     }
@@ -255,4 +258,47 @@ export function deleteCard(prev: BoardState, key: string): BoardState {
   const cards = { ...prev.cards }
   delete cards[key]
   return { ...prev, cards }
+}
+
+/** The chat tabs among Orca's agents (`orca worktree ps`): main agents whose tab is no terminal. */
+export function chatTabsOf(
+  worktrees: {
+    worktreeId: string
+    path: string
+    agents?: {
+      paneKey: string
+      parentPaneKey?: string | null
+      agentType?: string | null
+      displayName?: string | null
+      conversationName?: string | null
+      prompt?: string | null
+      hasLivePty?: boolean | null
+      updatedAt?: number
+      activity?: { title?: string | null } | null
+    }[]
+  }[],
+  terminalTabs: Set<string>,
+  chatPrefix: string
+): LiveTerminal[] {
+  const out = new Map<string, LiveTerminal>()
+  for (const w of worktrees) {
+    for (const a of w.agents ?? []) {
+      const tabId = a.paneKey.split(':')[0]
+      if (a.parentPaneKey || !tabId.startsWith(chatPrefix) || terminalTabs.has(tabId) || out.has(tabId)) continue
+      const title = a.displayName || a.conversationName || a.activity?.title || a.prompt || 'Chat'
+      out.set(tabId, {
+        handle: tabId,
+        tabId,
+        ptyId: tabId,
+        worktreeId: w.worktreeId,
+        worktreePath: w.path,
+        title,
+        tabTitle: title,
+        agentIdentity: a.agentType ?? null,
+        lastOutputAt: a.updatedAt ?? null,
+        sessionId: tabId.slice(chatPrefix.length)
+      })
+    }
+  }
+  return [...out.values()]
 }

@@ -1,6 +1,6 @@
 # Chat Board for Orca
 
-A kanban of your **agent chats**: the Claude, Codex, Cursor, Gemini and other agent tabs you have open, across every Orca workspace. Orca's Workspace Board groups work by workspace. Chat Board groups it by conversation, which helps when you keep many chats on different topics open in the same workspace.
+A kanban of your **agent chats**: the Claude, Codex, Cursor, Gemini and other agent tabs you have open, terminal or chat, across every Orca workspace. Orca's Workspace Board groups work by workspace. Chat Board groups it by conversation, which helps when you keep many chats on different topics open in the same workspace.
 
 ![Chat Board in dark theme](assets/screenshot-dark.png)
 
@@ -15,7 +15,7 @@ Orca lists the access the plugin asks for (see [Permissions](#permissions)) and 
 ## What it does
 
 **Board**
-- Every chat that runs an agent gets a card. New chats land in the first column.
+- Every tab that runs an agent gets a card: terminal tabs, and Orca's chat tabs once they have a conversation. New chats land in the first column.
 - Make your own columns: add, rename (double-click the title), reorder (‹ ›), collapse into a narrow strip (⇤) and delete.
 - Drag cards between columns and within a column.
 - Filter by title, note, workspace or agent.
@@ -57,14 +57,14 @@ Orca asks you to approve these when you install the plugin. Here is what each on
 
 | Permission | What the plugin does with it |
 |---|---|
-| **Runs its own code** (Node worker) | Lists your chats in every workspace, opens a chat and renames its tab. The worker only ever runs three Orca CLI commands: `orca terminal list`, `orca terminal switch` and `orca terminal rename`. The plugin API alone sees only the focused workspace and cannot open or rename tabs. |
+| **Runs its own code** (Node worker) | Lists your chats in every workspace, opens a chat and renames its tab. The worker only ever runs these Orca CLI commands: `orca terminal list`, `orca terminal switch`, `orca terminal rename`, `orca worktree ps` (agents and status, chat tabs included), `orca chat rename` and `orca worktree activate`. The plugin API alone sees only the focused workspace and cannot open or rename tabs. |
 | `storage:own` | Saves the board: columns, card positions, notes, agent status and monitors. All of it stays in the plugin's own folder. |
 | `agent:read` | Agent status icons, the yellow "not seen yet" mark, and moving a Backlog card when you start a chat. |
 | `workspace:read` | Knows which tab you are looking at, for the "not seen yet" mark and the open-chat highlight, and refreshes the board when chats open or close. |
 | `settings:own` | The plugin's options in Orca's Settings. |
 | Hook `agent.tool.after` (observe only) | Detects loops and watchers. Orca hands this hook every tool call an agent makes. The plugin looks only at `ScheduleWakeup`, `CronCreate`/`CronDelete`, `Monitor` and `TaskStop`, keeping their timing and description, and drops every other call without storing it. The hook never blocks or changes a call. |
 
-The plugin makes no network requests and sends nothing anywhere. Orca's terminal list includes a short preview of each terminal's latest output; the plugin ignores it and never stores or shows terminal output.
+The plugin makes no network requests and sends nothing anywhere. Some of what Orca's CLI returns, such as a preview of each terminal's latest output and the agent's last message, prompt or tool input, is never stored or shown by the plugin; it keeps only titles, agent type and status.
 
 ## Limitations
 
@@ -72,6 +72,7 @@ The plugin makes no network requests and sends nothing anywhere. Orca's terminal
 - Orca does not tell plugins about tab switches. While the panel is on screen, it checks which chat is open every 3 seconds.
 - Monitoring is recognised from tool calls, because Orca does not expose its own monitoring state to plugins. Only Claude Code's tool names are known so far. Orca does not run this hook for agents on SSH or WSL hosts.
 - Tested on macOS. On Linux and Windows the worker uses the CLI launcher Orca ships (`orca-ide` and the native `orca.exe`), but this has not been tried on those systems yet. If the board stays empty there, please open an issue.
+- Orca's chat tabs show up once they have a conversation. A click opens their workspace but not the tab itself, because Orca cannot switch to a chat tab from outside yet. Loop monitoring is not detected in chat tabs, since Orca's tool hook names no terminal for them.
 - A chat shows no status icon until Orca reports one for it. Some sessions, such as ones started before Orca's status hooks were set up, never report.
 
 ## How it works

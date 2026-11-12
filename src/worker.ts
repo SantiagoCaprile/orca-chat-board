@@ -5,6 +5,7 @@ import type { AgentState, BoardState, BoardView, CardView } from './protocol.ts'
 import {
   activeTabsByWorktree,
   chatsOf,
+  chatTabsOf,
   tabTitlesOf,
   clearArchived,
   deleteCard,
@@ -16,7 +17,16 @@ import {
   startInProgress,
   updateCard
 } from './board.ts'
-import { listTerminals, renameTerminal, switchTerminal } from './cli.ts'
+import {
+  activateWorktree,
+  CHAT_TAB_PREFIX,
+  listAgents,
+  listTerminals,
+  renameChat,
+  renameTerminal,
+  switchTerminal,
+  type PsWorktree
+} from './cli.ts'
 import { applyToolCall, monitorView, onRun, type StoredMonitor } from './monitor.ts'
 
 const BOARD_KEY = 'board'
@@ -31,6 +41,8 @@ export default function activate(orca: OrcaWorkerApi): void {
   let lastOutput: Record<string, number> = {}
   let lastError: string | null = null
   let refreshedAt = 0
+  /** Chat tabs from the last `orca worktree ps`, reused by light refreshes. */
+  let lastChatTabs: ReturnType<typeof chatTabsOf> = []
   /** Tab ids on screen in the focused workspace at the last listing. */
   let visible = new Set<string>()
 
@@ -115,18 +127,56 @@ export default function activate(orca: OrcaWorkerApi): void {
 
   const keyOfHandle = (handle: string) => Object.keys(handles).find((k) => handles[k] === handle) ?? null
 
-  async function refresh(): Promise<BoardState> {
+  /** Status and Orca's own unread flag from `orca worktree ps`, for every agent tab it tracks. */
+  async function applyPs(state: BoardState, ps: PsWorktree[]): Promise<BoardState> {
+    const status = await loadStatus()
+    let changed = false
+    const unread: string[] = []
+    const read: string[] = []
+    for (const w of ps) {
+      for (const a of w.agents ?? []) {
+        if (a.parentPaneKey) continue
+        const tabId = a.paneKey.split(':')[0]
+        const handle = handles[tabId]
+        if (!handle) continue
+        const at = a.stateStartedAt ?? a.updatedAt ?? 0
+        const prev = status[handle]
+        // Orca's record fills cards that never got a status event (e.g. sessions started earlier).
+        if (!prev || prev.at < at) {
+          status[handle] = { state: a.state, at, outcome: a.interrupted ? 'interruption' : null }
+          changed = true
+        }
+        if (state.cards[tabId]?.sessionId) (a.activity?.unread ? unread : read).push(tabId)
+      }
+    }
+    if (changed) await orca.storage.set(STATUS_KEY, status)
+    // Chat tabs: Orca's own unread flag is the unseen mark (their focus cannot be read).
+    return markUnseen(markUnseen(state, read, null), unread, Date.now())
+  }
+
+  /** Lists chats and merges them; `withAgents` also asks `orca worktree ps` (chat tabs, status). */
+  async function refresh(withAgents = true): Promise<BoardState> {
     let state = await loadBoard()
     try {
       const { terminals, layouts } = await listTerminals()
       const titles = tabTitlesOf(layouts)
       const withTabTitles = terminals.map((t) => ({ ...t, tabTitle: titles.get(t.tabId) ?? null }))
-      const merged = mergeChats(state, chatsOf(withTabTitles), Date.now())
+      let ps: PsWorktree[] | null = null
+      if (withAgents) {
+        try {
+          ps = await listAgents()
+          lastChatTabs = chatTabsOf(ps, new Set(terminals.map((t) => t.tabId)), CHAT_TAB_PREFIX)
+        } catch (err) {
+          orca.log(`worktree ps failed: ${(err as Error).message.split('\n')[0]}`)
+        }
+      }
+      const merged = mergeChats(state, [...chatsOf(withTabTitles), ...lastChatTabs], Date.now())
       state = merged.state
       handles = merged.handles
       lastOutput = merged.lastOutput
       visible = await visibleTabs(terminals, layouts)
       state = markUnseen(state, visible, null)
+      if (ps) state = await applyPs(state, ps)
       lastError = null
       refreshedAt = Date.now()
       await orca.storage.set(BOARD_KEY, state)
@@ -177,9 +227,11 @@ export default function activate(orca: OrcaWorkerApi): void {
   // The name of an open chat is its Orca tab's title: rename the tab, then re-list.
   orca.panels.handle('card.update', async (patch) => {
     const handle = handles[patch.key]
-    if (typeof patch.label === 'string' && handle) {
+    const sessionId = (await loadBoard()).cards[patch.key]?.sessionId
+    if (typeof patch.label === 'string' && handle && (!sessionId || patch.label.trim())) {
       try {
-        await renameTerminal(handle, patch.label.trim())
+        if (sessionId) await renameChat(sessionId, patch.label.trim())
+        else await renameTerminal(handle, patch.label.trim())
         const { label: _label, ...rest } = patch
         await serial(refresh)
         return mutate((s) => updateCard(s, patch.key, { ...rest, label: '' }))
@@ -196,7 +248,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     serial(async () => {
       const before = await loadBoard()
       const wasVisible = visible
-      const state = await refresh()
+      const state = await refresh(false) // every 3 s: terminals only, chat tabs from the last full listing
       const v = await view(state)
       const cleared = Object.values(before.cards).some((c) => c.unseenAt && !state.cards[c.key]?.unseenAt)
       const moved = wasVisible.size !== visible.size || [...visible].some((k) => !wasVisible.has(k))
@@ -212,6 +264,16 @@ export default function activate(orca: OrcaWorkerApi): void {
       handle = handles[key]
     }
     if (!handle) return { ok: false, error: 'closed' }
+    const card = (await loadBoard()).cards[key]
+    if (card?.sessionId) {
+      // Orca cannot focus a chat tab from outside yet: show its workspace instead.
+      try {
+        await activateWorktree(card.worktreeId)
+        return { ok: true, error: 'chat-workspace' }
+      } catch (err) {
+        return { ok: false, error: (err as Error).message.split('\n')[0] }
+      }
+    }
     try {
       await switchTerminal(handle)
       visible = new Set([key])
@@ -260,8 +322,11 @@ export default function activate(orca: OrcaWorkerApi): void {
     })
   })
 
-  orca.events.on('agent.status.changed', ({ terminalId, state, receivedAt, mainAgent }) =>
+  orca.events.on('agent.status.changed', ({ terminalId: termId, paneKey, state, receivedAt, mainAgent }) =>
     serial(async () => {
+      // A chat tab has no terminal: its tab id (the paneKey's first part) is its handle.
+      const chatTab = paneKey.split(':')[0]
+      const terminalId = termId ?? (chatTab.startsWith(CHAT_TAB_PREFIX) ? chatTab : undefined)
       if (!terminalId) return
       const status = await loadStatus()
       const prev = status[terminalId]

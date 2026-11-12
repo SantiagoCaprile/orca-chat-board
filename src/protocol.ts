@@ -24,6 +24,8 @@ export type StoredCard = {
   worktreeId: string
   worktreeName: string
   ptyId: string
+  /** Set for an Orca chat tab (not a terminal): its chat session id. */
+  sessionId?: string | null
   closed: boolean
   closedAt: number | null
   /** When the agent finished (or started waiting) while you were not looking; null once seen. */

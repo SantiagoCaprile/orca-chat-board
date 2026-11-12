@@ -212,6 +212,42 @@ export async function renameTerminal(handle: string, title: string): Promise<voi
   await runJson(['terminal', 'rename', '--terminal', handle, '--title', title])
 }
 
+/** Orca's chat tabs (not terminals) start with this id prefix; the rest is the chat session id. */
+export const CHAT_TAB_PREFIX = 'structured-agent-session-'
+
+/** One agent row of `orca worktree ps` (only the fields the board uses). */
+export type PsAgent = {
+  paneKey: string
+  parentPaneKey?: string | null
+  state: 'working' | 'blocked' | 'waiting' | 'done'
+  agentType?: string | null
+  displayName?: string | null
+  conversationName?: string | null
+  prompt?: string | null
+  hasLivePty?: boolean | null
+  interrupted?: boolean
+  stateStartedAt?: number
+  updatedAt?: number
+  activity?: { unread?: boolean; title?: string | null } | null
+}
+export type PsWorktree = { worktreeId: string; path: string; displayName?: string; agents?: PsAgent[] }
+
+/** Every workspace's agents as Orca tracks them, chat tabs included (`orca worktree ps`). */
+export async function listAgents(): Promise<PsWorktree[]> {
+  const result = (await runJson(['worktree', 'ps'])) as { worktrees?: PsWorktree[] }
+  return result.worktrees ?? []
+}
+
+/** Renames a chat tab (`orca chat rename`). */
+export async function renameChat(sessionId: string, name: string): Promise<void> {
+  await runJson(['chat', 'rename', '--session', sessionId, '--name', name])
+}
+
+/** Shows a workspace in Orca. Chat tabs cannot be focused from the CLI yet, so this is the closest. */
+export async function activateWorktree(worktreeId: string): Promise<void> {
+  await runJson(['worktree', 'activate', '--worktree', `id:${worktreeId}`])
+}
+
 export async function switchTerminal(handle: string): Promise<void> {
   await runJson(['terminal', 'switch', '--terminal', handle])
 }
