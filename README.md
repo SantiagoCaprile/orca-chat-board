@@ -1,29 +1,55 @@
-# Chat Board (Orca plugin)
+# Chat Board for Orca
 
-A kanban of your **chats**, meaning terminal tabs running an agent (Claude, Cursor, Codex…), across every Orca workspace. It lives in Orca's right sidebar.
+A kanban of your **agent chats**: the Claude, Codex, Cursor, Gemini and other agent tabs you have open, across every Orca workspace. Orca's Workspace Board groups work by workspace. Chat Board groups it by conversation, which helps when you keep many chats on different topics open in the same workspace.
 
-- Your own columns: add, rename (double-click), reorder and delete them. Move cards with drag & drop.
-- Each card shows the agent's live status as an icon:
-  - working: spinner
-  - waiting for you: hourglass
-  - done: check
-  - interrupted: red cross
-  - needs permission: alert
-- Each card shows the agent's logo for all 45 agents Orca knows, using the same icons Orca shows. An agent that Orca adds later gets its initial.
-- When an agent stops working while you are looking at another chat, its card turns yellow with a dot, like Orca's unread tab. Its column header gets a dot too. The mark clears when you open the chat, from Orca or from the board, or when the agent starts working again.
-- Loops and watchers get Orca's "monitoring" pulse icon and their next run ("next 2m"). That covers `/loop` (`ScheduleWakeup`), `CronCreate` schedules and `Monitor` watches. If a loop misses its run by about one interval, the card shows "no signal". Orca does not give plugins its monitoring state, so the plugin recognises these from the agent's tool calls with the `agent.tool.after` hook, which only observes. Only Claude Code's tool names are recognised so far.
-- The chat you have open in Orca gets a ring in its column's colour. The panel checks every 3 seconds while it is on screen, since Orca has no event for switching tabs.
-- A click (or Enter, or ↗) opens the chat; dragging moves the card. ✎ renames the chat's Orca tab (an empty name brings back the automatic title) and edits the card's note. Enter saves, and Shift+Enter adds a new line to the note.
-- Talking to a chat that is in Backlog moves its card to In progress. Loops waking up on their own do not count. You can turn this off in Settings, and it does nothing if either of those default columns was deleted.
-- A chat you close goes to **Archived** and keeps its column and note. Remove it from there with ✕.
-- The UI follows Orca's language: Spanish for `es-*`, English otherwise.
+![Chat Board in dark theme](assets/screenshot-dark.png)
 
-## How it works
+## Install
 
-- `src/worker.ts` is a Node worker. It lists chats with `orca terminal list --json` and focuses them with `orca terminal switch`. The plugin host API only sees the focused workspace and cannot focus a terminal, so the worker goes through the CLI.
-- The board is saved in the plugin's own storage (key `board`), and agent status is saved under key `status`.
-- `src/board.ts` holds the pure logic: merging chats, moving cards and editing columns. When a chat comes back with a new tab id (after an Orca restart), it is matched back to its card by pty id, or by title and workspace.
-- `panel/index.ts` is the HTML panel and uses native drag & drop. `panel/i18n.ts` holds the strings and `panel/icons.ts` the status icons.
+```sh
+orca plugin install SantiagoCaprile/orca-chat-board
+```
+
+Orca lists the access the plugin asks for (see [Permissions](#permissions)) and asks you to approve it. Then open **Chat Board** from the right sidebar's activity bar.
+
+## What it does
+
+**Board**
+- Every chat that runs an agent gets a card. New chats land in the first column.
+- Make your own columns: add, rename (double-click the title), reorder (‹ ›), collapse into a narrow strip (⇤) and delete.
+- Drag cards between columns and within a column.
+- Filter by title, note, workspace or agent.
+
+**Live status**
+- Each card shows the agent's status as an icon: working (spinner), waiting for you (hourglass), done (check), interrupted (red cross), needs permission (alert).
+- **Not seen yet:** when an agent stops working while you are looking at another chat, its card turns yellow with a dot, like Orca's unread tab. Its column header gets a dot too. The mark clears when you open the chat or when the agent starts working again.
+- **Open chat:** the chat you have open in Orca gets a ring in its column's colour.
+- **Monitoring:** loops and watchers get Orca's pulse icon and their next run ("next 3m"). That covers `/loop` (`ScheduleWakeup`), `CronCreate` schedules and `Monitor` watches. When a loop misses its run by about one interval, the card shows "no signal".
+- Each card shows the agent's logo. All 45 agents Orca knows have one, the same icons Orca uses.
+
+**Working with chats**
+- Click a card to open its chat. Dragging moves the card instead.
+- ✎ renames the chat's Orca tab and edits the card's note. Enter saves; Shift+Enter adds a new line to the note.
+- When you start talking to a chat in **Backlog**, its card moves to **In progress**. You can turn this off.
+- A chat you close goes to **Archived** and keeps its column and note. Remove one card with ✕, or all of them with **Clear**.
+
+The UI follows Orca's theme (light or dark) and language (Spanish for `es-*`, English otherwise).
+
+![Chat Board in light theme](assets/screenshot-light.png)
+
+## Settings
+
+Under **Settings → Plugins → Chat Board**:
+
+| Setting | Default |
+|---|---|
+| Move to In progress when you start a chat | on |
+| Show agent logo | on |
+| Show workspace | on |
+| Show agent status icon | on |
+| Show time since last change | on |
+| Show notes | on |
+| Language (Auto, English, Español) | Auto |
 
 ## Permissions
 
@@ -40,11 +66,33 @@ Orca asks you to approve these when you install the plugin. Here is what each on
 
 The plugin makes no network requests and sends nothing anywhere. Orca's terminal list includes a short preview of each terminal's latest output; the plugin ignores it and never stores or shows terminal output.
 
+## Limitations
+
+- Orca puts plugin panels in the right sidebar only.
+- Orca does not tell plugins about tab switches. While the panel is on screen, it checks which chat is open every 3 seconds.
+- Monitoring is recognised from tool calls, because Orca does not expose its own monitoring state to plugins. Only Claude Code's tool names are known so far. Orca does not run this hook for agents on SSH or WSL hosts.
+- A chat shows no status icon until Orca reports one for it. Some sessions, such as ones started before Orca's status hooks were set up, never report.
+
+## How it works
+
+- `src/worker.ts` is a Node worker. It lists chats through the Orca CLI, tracks agent status and tool calls from Orca's events and hooks, and answers the panel.
+- `src/board.ts` holds the pure board logic: merging chats, moving cards, columns and the unseen mark. A chat that comes back with a new tab id, for example after an Orca restart, is matched back to its card by pty id, or by title and workspace.
+- `src/monitor.ts` recognises loops and watchers from tool calls and decides when one has lost its signal.
+- `panel/` is the HTML panel. It uses native drag & drop, and holds the strings (`i18n.ts`), status icons (`icons.ts`) and agent logos (`logos.ts`).
+
 ## Development
 
 ```sh
-orca plugin dev watch . --check   # reload on save
-orca plugin test .                # worker tests
+orca plugin dev watch . --check   # load this folder into Orca and reload on save
+orca plugin test .                # tests
 npx -p typescript tsc -p .        # type-check
 orca plugin shot local.chat-board --panel board --width 900
 ```
+
+## Credits
+
+The agent logos are the ones Orca ships for each agent. They belong to their respective owners.
+
+## License
+
+[MIT](LICENSE)

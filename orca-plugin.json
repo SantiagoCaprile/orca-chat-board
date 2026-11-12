@@ -2,8 +2,32 @@
   "manifestVersion": 2,
   "id": "chat-board",
   "name": "Chat Board",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A kanban of your agent chats (Claude, Cursor, Codex tabs) across every workspace, with your own columns and live agent status.",
+  "author": {
+    "name": "Santiago Caprile",
+    "url": "https://github.com/SantiagoCaprile"
+  },
+  "repository": "https://github.com/SantiagoCaprile/orca-chat-board",
+  "homepage": "https://github.com/SantiagoCaprile/orca-chat-board",
+  "license": "MIT",
+  "icon": "assets/icon.png",
+  "cover": {
+    "path": "assets/cover.png",
+    "alt": "Chat Board panel: four kanban columns of agent chats with status icons, a yellow unseen highlight and a monitoring loop"
+  },
+  "screenshots": [
+    {
+      "path": "assets/store-dark.png",
+      "alt": "Chat Board in dark theme with cards in Backlog, In progress, In review and Done",
+      "caption": "Status, unseen highlight, open chat and loop monitoring"
+    },
+    {
+      "path": "assets/store-light.png",
+      "alt": "Chat Board in light theme",
+      "caption": "Follows your Orca theme"
+    }
+  ],
   "engines": {
     "orca": ">=1.4.248"
   },
