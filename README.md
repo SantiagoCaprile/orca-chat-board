@@ -37,7 +37,7 @@ Orca asks you to approve these when you install the plugin. Here is what each on
 | `settings:own` | The plugin's options in Orca's Settings. |
 | Hook `agent.tool.after` (observe only) | Detects loops and watchers. Orca hands this hook every tool call an agent makes. The plugin looks only at `ScheduleWakeup`, `CronCreate`/`CronDelete`, `Monitor` and `TaskStop`, keeping their timing and description, and drops every other call without storing it. The hook never blocks or changes a call. |
 
-The plugin makes no network requests and sends nothing anywhere. It also does not read your terminals' output; the board shows only the titles Orca lists.
+The plugin makes no network requests and sends nothing anywhere. Orca's terminal list includes a short preview of each terminal's latest output; the plugin ignores it and never stores or shows terminal output.
 
 ## Development
 
