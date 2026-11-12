@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "chat-board",
   "name": "Chat Board",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A kanban of your agent chats (Claude, Cursor, Codex tabs) across every workspace, with your own columns and live agent status.",
   "author": {
     "name": "Santiago Caprile",
