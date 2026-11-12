@@ -71,6 +71,7 @@ The plugin makes no network requests and sends nothing anywhere. Orca's terminal
 - Orca puts plugin panels in the right sidebar only.
 - Orca does not tell plugins about tab switches. While the panel is on screen, it checks which chat is open every 3 seconds.
 - Monitoring is recognised from tool calls, because Orca does not expose its own monitoring state to plugins. Only Claude Code's tool names are known so far. Orca does not run this hook for agents on SSH or WSL hosts.
+- Tested on macOS. On Linux and Windows the worker uses the CLI launcher Orca ships (`orca-ide` and the native `orca.exe`), but this has not been tried on those systems yet. If the board stays empty there, please open an issue.
 - A chat shows no status icon until Orca reports one for it. Some sessions, such as ones started before Orca's status hooks were set up, never report.
 
 ## How it works
