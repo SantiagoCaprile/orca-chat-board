@@ -33,7 +33,7 @@ const BOARD_KEY = 'board'
 const STATUS_KEY = 'status'
 const MONITORS_KEY = 'monitors'
 
-type Status = { state: AgentState; at: number; outcome?: string | null }
+type Status = { state: AgentState; at: number; outcome?: string | null; main?: AgentState | null }
 
 export default function activate(orca: OrcaWorkerApi): void {
   /** Live handle and last output of each card key, from the latest listing. */
@@ -80,6 +80,7 @@ export default function activate(orca: OrcaWorkerApi): void {
         handle,
         state: s?.state ?? null,
         stateAt: s?.at ?? null,
+        mainState: s?.main ?? null,
         outcome: s?.outcome ?? null,
         lastOutputAt: lastOutput[c.key] ?? null,
         monitor: m ? monitorView(m, now) : null,
@@ -142,8 +143,9 @@ export default function activate(orca: OrcaWorkerApi): void {
         const at = a.stateStartedAt ?? a.updatedAt ?? 0
         const prev = status[handle]
         // Orca's record fills cards that never got a status event (e.g. sessions started earlier).
-        if (!prev || prev.at < at) {
-          status[handle] = { state: a.state, at, outcome: a.interrupted ? 'interruption' : null }
+        const main = (a as { mainAgent?: { state?: AgentState } }).mainAgent?.state ?? null
+        if (!prev || prev.at < at || (prev.at === at && (prev.main ?? null) !== main)) {
+          status[handle] = { state: a.state, at, outcome: a.interrupted ? 'interruption' : null, main }
           changed = true
         }
         if (state.cards[tabId]?.sessionId) (a.activity?.unread ? unread : read).push(tabId)
@@ -347,11 +349,13 @@ export default function activate(orca: OrcaWorkerApi): void {
       const status = await loadStatus()
       const prev = status[terminalId]
       const outcome = mainAgent?.outcome ?? null
-      if (prev && prev.state === state && (prev.outcome ?? null) === outcome) return
+      const main = mainAgent?.state ?? null
+      if (prev && prev.state === state && (prev.outcome ?? null) === outcome && (prev.main ?? null) === main) return
       status[terminalId] = {
         state,
         at: prev && prev.state === state ? prev.at : (mainAgent?.stateStartedAt ?? receivedAt),
-        outcome
+        outcome,
+        main
       }
       await orca.storage.set(STATUS_KEY, status)
 

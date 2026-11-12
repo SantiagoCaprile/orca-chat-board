@@ -44,6 +44,9 @@ export type CardView = StoredCard & {
   handle: string | null
   state: AgentState | null
   stateAt: number | null
+  /** The main agent's own turn. `working` overall while this is not = Orca's monitoring mode
+   *  (the turn ended but background shells, monitors or subagents keep running). */
+  mainState: AgentState | null
   /** How the agent's last turn ended, when Orca says: `interruption`, `failure`, `success`… */
   outcome: string | null
   lastOutputAt: number | null

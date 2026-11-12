@@ -471,3 +471,22 @@ test('hover preview answers the last prompt and reply from Orca, on demand', asy
   assert.deepEqual(worker.host.data().storage, {}, 'nothing is stored')
   await worker.deactivate()
 })
+
+test("Orca's monitoring mode (working overall, main turn done) reaches the card", async () => {
+  fakeCli(() => [term(1)])
+  const worker = await mountWorker(main, { host: host() })
+  await worker.request('board.get', { refresh: true })
+  await worker.emit('agent.status.changed', {
+    workspaceId: null, paneKey: 'p', terminalId: 'term_1', state: 'working', receivedAt: 10,
+    mainAgent: { state: 'working', stateStartedAt: 10 }
+  })
+  await worker.emit('agent.status.changed', {
+    workspaceId: null, paneKey: 'p', terminalId: 'term_1', state: 'working', receivedAt: 20,
+    mainAgent: { state: 'done', outcome: 'success', stateStartedAt: 20 }
+  })
+  const card = ((await worker.request('board.get', {})) as BoardView).cards[0]
+  assert.equal(card.state, 'working')
+  assert.equal(card.mainState, 'done')
+  assert.equal(card.unseenAt ?? null, null, 'still working: not news yet')
+  await worker.deactivate()
+})

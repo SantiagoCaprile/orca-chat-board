@@ -13,10 +13,14 @@ const INTERRUPTED = new Set(['interruption', 'failure', 'cancellation'])
 /** What the status icon shows: the agent state, with a finished turn that was cut short as `interrupted`. */
 function statusOf(c: CardView): StatusKind | null {
   if (c.closed) return 'closed'
+  // Orca's monitoring mode: working overall, but the main agent's turn is over (background
+  // shells, monitors or subagents keep it alive).
+  const orcaMonitoring = c.state === 'working' && !!c.mainState && c.mainState !== 'working'
   // Like Orca: a running turn, a question or a permission request outrank the monitor.
-  if (c.monitor && c.state !== 'working' && c.state !== 'waiting' && c.state !== 'blocked') {
+  if (c.monitor && (orcaMonitoring || (c.state !== 'working' && c.state !== 'waiting' && c.state !== 'blocked'))) {
     return isStale(c.monitor, Date.now()) ? 'stale' : 'monitoring'
   }
+  if (orcaMonitoring) return 'monitoring'
   if (!c.state) return null
   if (c.state === 'done' && c.outcome && INTERRUPTED.has(c.outcome)) return 'interrupted'
   return c.state
@@ -214,7 +218,7 @@ async function saveColumns(columns: Column[]): Promise<void> {
 function renderCard(c: CardView): HTMLElement {
   const kind = statusOf(c)
   const stateBadge =
-    kind && show.status ? statusIcon(kind, c.closed ? c.closedAt : kind === 'monitoring' || kind === 'stale' ? (c.monitor?.lastRunAt ?? null) : c.stateAt) : null
+    kind && show.status ? statusIcon(kind, c.closed ? c.closedAt : kind === 'monitoring' || kind === 'stale' ? (c.monitor?.lastRunAt ?? c.stateAt) : c.stateAt) : null
   const when = c.closed ? c.closedAt : (c.stateAt ?? c.lastOutputAt)
   const mon = monitorTime(c, kind)
 
@@ -616,10 +620,12 @@ function boot(): void {
   orca.on('agent.status.changed', ({ terminalId, state, receivedAt, mainAgent }) => {
     const card = view?.cards.find((c) => c.handle && c.handle === terminalId)
     const outcome = mainAgent?.outcome ?? null
-    if (!card || (card.state === state && card.outcome === outcome)) return
+    const main = mainAgent?.state ?? null
+    if (!card || (card.state === state && card.outcome === outcome && card.mainState === main)) return
     if (card.state !== state) card.stateAt = mainAgent?.stateStartedAt ?? receivedAt
     card.state = state
     card.outcome = outcome
+    card.mainState = main
     render()
   })
   // Orca has no event for switching tabs: while the panel is on screen, ask every few seconds which
