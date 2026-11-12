@@ -41,8 +41,9 @@ export function cleanTitle(title: string): string {
   return title.replace(/^[\s✳✻✽✶✢·⠀-⣿]+/u, '').trim() || title
 }
 
-function basename(path: string): string {
-  const parts = path.split('/').filter(Boolean)
+/** Last path segment; worktree paths use `\` on Windows and `/` elsewhere. */
+export function basename(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean)
   return parts[parts.length - 1] ?? path
 }
 
