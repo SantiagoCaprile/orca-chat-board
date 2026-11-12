@@ -179,7 +179,11 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
   background: var(--orca-popover); color: var(--orca-popover-foreground);
   border: 1px solid var(--orca-border); border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, .35); pointer-events: none; font-size: 12px;
+  opacity: 0; transform: translateY(-4px) scale(.98); transform-origin: top left;
+  transition: opacity .14s ease-out, transform .16s cubic-bezier(.2, .8, .2, 1);
 }
+.preview.show { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .preview { transition: opacity .1s linear; transform: none; } }
 .preview-who { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   color: var(--orca-muted-foreground); margin-bottom: 2px; }
 .preview-agent .preview-who { color: #d97757; }

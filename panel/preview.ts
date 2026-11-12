@@ -4,7 +4,12 @@ import { t } from './i18n.ts'
 
 type Preview = { prompt: string | null; message: string | null; at: number | null }
 
-const DELAY_MS = 450
+const DELAY_MS = 400
+/** Right after a popover was open, the next card's shows almost at once (like system tooltips). */
+const WARM_DELAY_MS = 90
+const WARM_WINDOW_MS = 600
+const FADE_MS = 140
+let lastShownAt = 0
 const CACHE_MS = 5000
 const cache = new Map<string, { at: number; data: Preview }>()
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -73,9 +78,13 @@ export function hidePreview(): void {
   if (timer) clearTimeout(timer)
   timer = null
   currentKey = null
-  pop?.remove()
-  pop = null
   document.removeEventListener('mousemove', onMove, true)
+  const old = pop
+  pop = null
+  if (!old) return
+  lastShownAt = Date.now()
+  old.classList.remove('show') // fade out, then drop it
+  setTimeout(() => old.remove(), FADE_MS)
 }
 
 /** Hides the popover once the pointer is no longer on that card (cards are redrawn under it). */
@@ -88,6 +97,7 @@ export function schedulePreview(key: string, anchor: HTMLElement): void {
   hidePreview()
   currentKey = key
   document.addEventListener('mousemove', onMove, true)
+  const warm = Date.now() - lastShownAt < WARM_WINDOW_MS
   timer = setTimeout(async () => {
     timer = null
     let data: Preview
@@ -101,5 +111,8 @@ export function schedulePreview(key: string, anchor: HTMLElement): void {
     pop = render(data)
     document.body.append(pop)
     place(pop, target)
-  }, DELAY_MS)
+    const shown = pop
+    requestAnimationFrame(() => shown.classList.add('show')) // fade and slide in
+    lastShownAt = Date.now()
+  }, warm ? WARM_DELAY_MS : DELAY_MS)
 }
