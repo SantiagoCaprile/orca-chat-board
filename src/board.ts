@@ -228,6 +228,19 @@ export function tabTitlesOf(layouts: unknown): Map<string, string> {
   return out
 }
 
+/** Default column ids the auto-move rule relies on (titles can be renamed). */
+export const BACKLOG_COLUMN = 'backlog'
+export const IN_PROGRESS_COLUMN = 'doing'
+
+/** Rule: a chat you start talking to leaves the Backlog for the end of In progress. No-op otherwise. */
+export function startInProgress(prev: BoardState, key: string): BoardState {
+  const card = prev.cards[key]
+  if (!card || card.closed || card.column !== BACKLOG_COLUMN) return prev
+  if (!prev.columns.some((c) => c.id === IN_PROGRESS_COLUMN)) return prev
+  const count = Object.values(prev.cards).filter((c) => c.column === IN_PROGRESS_COLUMN && !c.closed).length
+  return moveCard(prev, key, IN_PROGRESS_COLUMN, count)
+}
+
 /** Forgets every closed chat at once. */
 export function clearArchived(prev: BoardState): BoardState {
   const cards: Record<string, StoredCard> = {}

@@ -327,3 +327,39 @@ test('the card shows the tab title, and renaming a card renames the Orca tab', a
   assert.equal(v.cards[0].note, 'n')
   await worker.deactivate()
 })
+
+test('talking to a Backlog chat moves it to In progress, unless the setting is off or the column is gone', async () => {
+  fakeCli(() => [term(1), term(2), term(3)])
+  const status = (w: Awaited<ReturnType<typeof mountWorker>>, id: string, state: 'working' | 'done', at: number) =>
+    w.emit('agent.status.changed', { workspaceId: null, paneKey: id, terminalId: id, state, receivedAt: at })
+  const columnOf = async (w: Awaited<ReturnType<typeof mountWorker>>, key: string) =>
+    ((await w.request('board.get', {})) as BoardView).cards.find((c) => c.key === key)?.column
+
+  const worker = await mountWorker(main, { host: host() })
+  await worker.request('board.get', { refresh: true })
+  await worker.request('board.move', { key: 'tab2', column: 'waiting', index: 0 })
+  await status(worker, 'term_1', 'working', 10)
+  await status(worker, 'term_2', 'working', 10)
+  assert.equal(await columnOf(worker, 'tab1'), 'doing')
+  assert.equal(await columnOf(worker, 'tab2'), 'waiting') // only Backlog cards move
+
+  await worker.request('board.columns.set', {
+    columns: [
+      { id: 'backlog', title: 'Backlog' },
+      { id: 'done', title: 'Done' }
+    ]
+  })
+  await status(worker, 'term_3', 'working', 10)
+  assert.equal(await columnOf(worker, 'tab3'), 'backlog') // no In progress column: nothing happens
+  await worker.deactivate()
+
+  const off = mockHost({
+    settings: { autoMoveToInProgress: false },
+    results: { 'agents.list': { agents: [] }, 'workspace.readContext': null }
+  })
+  const w2 = await mountWorker(main, { host: off })
+  await w2.request('board.get', { refresh: true })
+  await status(w2, 'term_1', 'working', 10)
+  assert.equal(await columnOf(w2, 'tab1'), 'backlog')
+  await w2.deactivate()
+})

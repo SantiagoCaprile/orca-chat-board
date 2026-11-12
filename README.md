@@ -13,6 +13,7 @@ A kanban of your **chats**, meaning terminal tabs running an agent (Claude, Curs
 - When an agent stops working while you are looking at another chat, its card turns yellow with a dot, like Orca's unread tab. Its column header gets a dot too. The mark clears when you open the chat, from Orca or from the board, or when the agent starts working again.
 - Loops and watchers get Orca's "monitoring" pulse icon and their next run ("next 2m"). That covers `/loop` (`ScheduleWakeup`), `CronCreate` schedules and `Monitor` watches. If a loop misses its run by about one interval, the card shows "no signal". Orca does not give plugins its monitoring state, so the plugin recognises these from the agent's tool calls with the `agent.tool.after` hook, which only observes. Only Claude Code's tool names are recognised so far.
 - A click (or Enter, or ↗) opens the chat; dragging moves the card. ✎ renames the chat's Orca tab (an empty name brings back the automatic title) and edits the card's note. Enter saves, and Shift+Enter adds a new line to the note.
+- Talking to a chat that is in Backlog moves its card to In progress. Loops waking up on their own do not count. You can turn this off in Settings, and it does nothing if either of those default columns was deleted.
 - A chat you close goes to **Archived** and keeps its column and note. Remove it from there with ✕.
 - The UI follows Orca's language: Spanish for `es-*`, English otherwise.
 

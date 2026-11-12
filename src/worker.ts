@@ -13,6 +13,7 @@ import {
   moveCard,
   normalizeBoard,
   setColumns,
+  startInProgress,
   updateCard
 } from './board.ts'
 import { listTerminals, renameTerminal, switchTerminal } from './cli.ts'
@@ -100,6 +101,14 @@ export default function activate(orca: OrcaWorkerApi): void {
     } catch (err) {
       orca.log(`workspace.readContext failed: ${(err as Error).message}`)
       return new Set()
+    }
+  }
+
+  const autoMoveOn = async (): Promise<boolean> => {
+    try {
+      return (await orca.settings.get('autoMoveToInProgress')) !== false
+    } catch {
+      return true
     }
   }
 
@@ -278,12 +287,16 @@ export default function activate(orca: OrcaWorkerApi): void {
       let board = await refresh()
       const key = keyOfHandle(terminalId)
       if (!key) return
-      const next =
+      let next =
         state === 'working'
           ? markUnseen(board, [key], null)
           : visible.has(key)
             ? board
             : markUnseen(board, [key], receivedAt)
+      // You started talking to a Backlog chat (not a loop waking up by itself): it is in progress now.
+      if (state === 'working' && prev?.state !== 'working' && !(await liveMonitor(terminalId)) && (await autoMoveOn())) {
+        next = startInProgress(next, key)
+      }
       if (next !== board) {
         board = next
         await orca.storage.set(BOARD_KEY, board)

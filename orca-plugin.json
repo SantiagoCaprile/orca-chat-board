@@ -30,6 +30,13 @@
     ],
     "settings": [
       {
+        "key": "autoMoveToInProgress",
+        "title": "Move to In progress when you start a chat",
+        "description": "When you talk to a chat in the Backlog column, its card moves to In progress. Uses the default Backlog and In progress columns (renaming them is fine); nothing happens if either was deleted.",
+        "type": "boolean",
+        "default": true
+      },
+      {
         "key": "showAgent",
         "title": "Show agent logo",
         "description": "Claude / Cursor logo (or agent name) on each card.",
