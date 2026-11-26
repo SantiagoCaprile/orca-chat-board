@@ -19,7 +19,7 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 }
 
 .toolbar {
-  display: flex; gap: 6px; align-items: center; padding: 8px;
+  display: flex; gap: 4px; align-items: center; padding: 4px 6px;
   border-bottom: 1px solid var(--orca-border); flex: none;
 }
 .toolbar input { flex: 1; min-width: 60px; }
@@ -35,7 +35,7 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 }
 
 .board {
-  flex: 1; overflow: auto; padding: 8px; display: flex; gap: 8px;
+  flex: 1; overflow: auto; padding: 6px; display: flex; gap: 6px;
   align-items: flex-start; min-height: 0;
 }
 .board > .column { flex: 1 1 200px; min-width: 200px; }
@@ -65,28 +65,30 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
   background: color-mix(in srgb, var(--col) 6%, var(--orca-card)); color: var(--orca-card-foreground);
   border: 1px solid color-mix(in srgb, var(--col) 35%, var(--orca-border));
   border-top: 3px solid var(--col); border-radius: var(--orca-radius, 6px);
-  display: flex; flex-direction: column; min-height: 60px;
+  display: flex; flex-direction: column; min-height: 40px;
 }
 .column-head {
-  display: flex; align-items: center; gap: 4px; padding: 6px 8px;
+  display: flex; align-items: center; gap: 2px; padding: 2px 4px 2px 8px;
   background: color-mix(in srgb, var(--col) 16%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--col) 30%, var(--orca-border));
 }
+.column-head.clickable { cursor: pointer; }
+.column-head.clickable:hover { background: color-mix(in srgb, var(--col) 24%, transparent); }
 .column-title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: color-mix(in srgb, var(--col) 70%, var(--orca-foreground)); }
 .count { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 11px; padding: 0 6px; border-radius: 9px;
   background: color-mix(in srgb, var(--col) 30%, transparent); color: var(--orca-foreground); }
-.column-body { padding: 6px; display: flex; flex-direction: column; gap: 6px; min-height: 40px; }
+.column-body { padding: 4px; display: flex; flex-direction: column; gap: 3px; min-height: 28px; }
 .column.drop-target { border-color: var(--orca-primary); }
 .column.drop-target { border-color: var(--col); box-shadow: 0 0 0 1px var(--col); }
 .drop-line { height: 2px; background: var(--col); border-radius: 1px; margin: -4px 0; }
-.empty { color: var(--orca-muted-foreground); text-align: center; padding: 8px 0; font-size: 11px; }
+.empty { color: var(--orca-muted-foreground); text-align: center; padding: 4px 0; font-size: 11px; }
 
 .card {
   --st: var(--orca-border);
   background: color-mix(in srgb, var(--st) 7%, var(--orca-background));
   border: 1px solid var(--orca-border); border-left: 3px solid var(--st);
-  border-radius: 5px; padding: 6px 8px; cursor: pointer; position: relative;
+  border-radius: 4px; padding: 3px 6px; cursor: pointer; position: relative;
 }
 .card:hover { border-color: color-mix(in srgb, var(--col) 60%, var(--orca-border)); border-left-color: var(--st); }
 .card.st-working { --st: #4f8ff7; }
@@ -113,12 +115,12 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 }
 .card.unseen .card-title { font-weight: 650; }
 .unseen-dot {
-  width: 8px; height: 8px; border-radius: 50%; flex: none; background: #f5c518; margin-top: 5px;
+  width: 8px; height: 8px; border-radius: 50%; flex: none; background: #f5c518;
   box-shadow: 0 0 0 3px color-mix(in srgb, #f5c518 25%, transparent);
 }
 .column-head .unseen-dot, .column.collapsed .unseen-dot { margin-top: 0; }
 
-.status { width: 16px; height: 16px; flex: none; display: inline-flex; margin-top: 1px; }
+.status { width: 14px; height: 14px; flex: none; display: inline-flex; }
 .status svg { width: 100%; height: 100%; }
 .status.working { color: #4f8ff7; }
 .status.working svg { animation: spin 0.9s linear infinite; }
@@ -131,17 +133,20 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 .status.monitoring { color: #4f8ff7; }
 .status.monitoring svg { animation: beat 1.6s ease-in-out infinite; }
 .status.stale { color: #8b95a5; }
-.time.monitoring { color: #4f8ff7; }
-.time.stale { color: #e5a50a; }
+.card .time.monitoring { color: #4f8ff7; }
+.card .time.stale { color: #e5a50a; }
 @keyframes beat { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes tip { 0%, 70% { transform: rotate(0); } 85%, 100% { transform: rotate(180deg); } }
 @media (prefers-reduced-motion: reduce) { .status svg { animation: none !important; } }
 .card.dragging { opacity: .4; cursor: grabbing; }
 .card.closed { opacity: .65; cursor: default; }
-.card-top { display: flex; gap: 6px; align-items: flex-start; }
-.card-title { flex: 1; font-weight: 500; word-break: break-word; }
-.card-meta { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap;
+.card-top { display: flex; gap: 5px; align-items: center; }
+.card-title { flex: 1; min-width: 0; font-weight: 500; word-break: break-word;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.card-top .time { flex: none; color: var(--orca-muted-foreground); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.card-top .logo { width: 13px; height: 13px; }
+.card-meta { display: flex; gap: 6px; align-items: center; margin-top: 2px; flex-wrap: wrap;
   color: var(--orca-muted-foreground); font-size: 11px; }
 .card-meta:empty { display: none; }
 /* Time sits at the right edge, under the status icon. */
@@ -154,7 +159,7 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
 .logo.initial { align-items: center; justify-content: center; font-size: 10px; font-weight: 700;
   background: var(--orca-muted); color: var(--orca-muted-foreground); }
 .chip.ws { --c: #1fb5b5; }
-.note { margin-top: 4px; color: var(--orca-muted-foreground); white-space: pre-wrap; word-break: break-word; }
+.note { margin-top: 2px; font-size: 11px; color: var(--orca-muted-foreground); white-space: pre-wrap; word-break: break-word; }
 .card-actions { position: absolute; top: 3px; right: 3px; display: none; gap: 2px;
   background: var(--orca-background); border-radius: 4px; }
 .card:hover .card-actions, .card:focus-within .card-actions { display: flex; }

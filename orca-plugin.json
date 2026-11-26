@@ -124,6 +124,30 @@
       {
         "event": "agent.tool.after"
       }
+    ],
+    "commands": [
+      {
+        "id": "chat-board.nextAttention",
+        "title": "Chat Board: Next chat that needs you",
+        "when": "global"
+      },
+      {
+        "id": "chat-board.previousAttention",
+        "title": "Chat Board: Previous chat that needs you",
+        "when": "global"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "chat-board.nextAttention",
+        "key": "Mod+Shift+U",
+        "when": "global"
+      },
+      {
+        "command": "chat-board.previousAttention",
+        "key": "Mod+Alt+Shift+U",
+        "when": "global"
+      }
     ]
   },
   "capabilities": [
@@ -138,6 +162,9 @@
     },
     {
       "kind": "settings:own"
+    },
+    {
+      "kind": "workspace:write"
     }
   ]
 }

@@ -79,12 +79,32 @@ export function hidePreview(): void {
   timer = null
   currentKey = null
   document.removeEventListener('mousemove', onMove, true)
+  unwatchExit()
   const old = pop
   pop = null
   if (!old) return
   lastShownAt = Date.now()
   old.classList.remove('show') // fade out, then drop it
   setTimeout(() => old.remove(), FADE_MS)
+}
+
+// Mousemove alone misses several ways the pointer leaves the card: it can leave the panel
+// (into the terminal) without another move here, the board can scroll under a still pointer,
+// or Orca's window can lose focus. Any of these closes the popover.
+const exitEvents: [EventTarget, string][] = [
+  [document.documentElement, 'mouseleave'],
+  [window, 'blur'],
+  [window, 'wheel'],
+  [document, 'scroll'],
+  [document, 'visibilitychange'],
+  [document, 'mousedown']
+]
+const onExit = () => hidePreview()
+function watchExit(): void {
+  for (const [target, type] of exitEvents) target.addEventListener(type, onExit, { capture: true, passive: true })
+}
+function unwatchExit(): void {
+  for (const [target, type] of exitEvents) target.removeEventListener(type, onExit, { capture: true })
 }
 
 /** Hides the popover once the pointer is no longer on that card (cards are redrawn under it). */
@@ -97,6 +117,7 @@ export function schedulePreview(key: string, anchor: HTMLElement): void {
   hidePreview()
   currentKey = key
   document.addEventListener('mousemove', onMove, true)
+  watchExit()
   const warm = Date.now() - lastShownAt < WARM_WINDOW_MS
   timer = setTimeout(async () => {
     timer = null

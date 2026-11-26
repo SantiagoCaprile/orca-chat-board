@@ -62,6 +62,12 @@ export default function activate(orca: OrcaWorkerApi): void {
   /** Monitors by terminal handle. */
   const loadMonitors = async (): Promise<Record<string, StoredMonitor>> =>
     ((await orca.storage.get(MONITORS_KEY)) as Record<string, StoredMonitor> | null) ?? {}
+  /** Writes only when the value differs from what is stored: the 3 s poll would otherwise
+   *  rewrite storage.json and add audit-log lines every time, even with nothing new. */
+  const save = async (key: string, value: unknown): Promise<void> => {
+    if (JSON.stringify(await orca.storage.get(key)) === JSON.stringify(value)) return
+    await orca.storage.set(key, value)
+  }
   const liveMonitor = async (handle: string): Promise<boolean> => {
     const m = (await loadMonitors())[handle]
     return !!m && monitorView(m, Date.now())?.stale === false
@@ -99,7 +105,7 @@ export default function activate(orca: OrcaWorkerApi): void {
         const prev = status[a.terminalId]
         if (!prev || prev.at < a.stateStartedAt) status[a.terminalId] = { state: a.state, at: a.stateStartedAt, outcome: null }
       }
-      await orca.storage.set(STATUS_KEY, status)
+      await save(STATUS_KEY, status)
     } catch (err) {
       orca.log(`agents.list failed: ${(err as Error).message}`)
     }
@@ -134,6 +140,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     let changed = false
     const unread: string[] = []
     const read: string[] = []
+    const startedHere: { tabId: string; handle: string }[] = []
     for (const w of ps) {
       for (const a of w.agents ?? []) {
         if (a.parentPaneKey) continue
@@ -145,13 +152,21 @@ export default function activate(orca: OrcaWorkerApi): void {
         // Orca's record fills cards that never got a status event (e.g. sessions started earlier).
         const main = (a as { mainAgent?: { state?: AgentState } }).mainAgent?.state ?? null
         if (!prev || prev.at < at || (prev.at === at && (prev.main ?? null) !== main)) {
+          // A chat seen going from idle to working here, rather than through an event, was
+          // still started by you: it gets the same Backlog → In progress move.
+          if (prev && prev.state !== 'working' && a.state === 'working') startedHere.push({ tabId, handle })
           status[handle] = { state: a.state, at, outcome: a.interrupted ? 'interruption' : null, main }
           changed = true
         }
         if (state.cards[tabId]?.sessionId) (a.activity?.unread ? unread : read).push(tabId)
       }
     }
-    if (changed) await orca.storage.set(STATUS_KEY, status)
+    if (changed) await save(STATUS_KEY, status)
+    if (startedHere.length && (await autoMoveOn())) {
+      for (const { tabId, handle } of startedHere) {
+        if (!(await liveMonitor(handle))) state = startInProgress(state, tabId)
+      }
+    }
     // Chat tabs: Orca's own unread flag is the unseen mark (their focus cannot be read).
     return markUnseen(markUnseen(state, read, null), unread, Date.now())
   }
@@ -181,12 +196,12 @@ export default function activate(orca: OrcaWorkerApi): void {
       if (ps) state = await applyPs(state, ps)
       lastError = null
       refreshedAt = Date.now()
-      await orca.storage.set(BOARD_KEY, state)
+      await save(BOARD_KEY, state)
       // Forget status of terminals that no longer exist.
       const live = new Set(Object.values(handles))
       const status = await loadStatus()
       for (const h of Object.keys(status)) if (!live.has(h)) delete status[h]
-      await orca.storage.set(STATUS_KEY, status)
+      await save(STATUS_KEY, status)
       const monitors = await loadMonitors()
       const now = Date.now()
       let dropped = false
@@ -196,7 +211,7 @@ export default function activate(orca: OrcaWorkerApi): void {
           dropped = true
         }
       }
-      if (dropped) await orca.storage.set(MONITORS_KEY, monitors)
+      if (dropped) await save(MONITORS_KEY, monitors)
     } catch (err) {
       lastError = (err as Error).message.split('\n')[0]
       orca.log(`terminal list failed: ${lastError}`)
@@ -209,7 +224,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     return serial(async () => {
       if (refreshedAt === 0) await refresh()
       const next = fn(await loadBoard())
-      await orca.storage.set(BOARD_KEY, next)
+      await save(BOARD_KEY, next)
       const v = await view(next)
       orca.panels.post('board.changed', v)
       return v
@@ -275,7 +290,10 @@ export default function activate(orca: OrcaWorkerApi): void {
     return none
   })
 
-  orca.panels.handle('chat.focus', async ({ key }) => {
+  orca.panels.handle('chat.focus', async ({ key }) => focusKey(key))
+
+  /** Opens one card's chat: its terminal tab, or the workspace of an Orca chat tab. */
+  async function focusKey(key: string): Promise<{ ok: boolean; error: string | null }> {
     let handle = handles[key]
     if (!handle) {
       await serial(refresh)
@@ -284,12 +302,24 @@ export default function activate(orca: OrcaWorkerApi): void {
     if (!handle) return { ok: false, error: 'closed' }
     const card = (await loadBoard()).cards[key]
     if (card?.sessionId) {
-      // Orca cannot focus a chat tab from outside yet: show its workspace instead.
+      // Orca cannot focus a chat tab from outside yet: show its workspace instead. The host API
+      // opens folder workspaces too (bots live in one); the CLI's `worktree activate` refuses them.
       try {
-        await activateWorktree(card.worktreeId)
+        if (orca.host.has('workspace.open')) {
+          await orca.host.call('workspace.open', { workspaceId: card.worktreeId })
+        } else {
+          await activateWorktree(card.worktreeId)
+        }
         return { ok: true, error: 'chat-workspace' }
       } catch (err) {
-        return { ok: false, error: (err as Error).message.split('\n')[0] }
+        const hostErr = err as Error & { code?: string }
+        orca.log(`workspace.open ${card.worktreeId} failed: ${hostErr.code ?? ''} ${hostErr.message.split('\n')[0]}`)
+        try {
+          await activateWorktree(card.worktreeId)
+          return { ok: true, error: 'chat-workspace' }
+        } catch (err2) {
+          return { ok: false, error: (err2 as Error).message.split('\n')[0] }
+        }
       }
     }
     try {
@@ -309,7 +339,58 @@ export default function activate(orca: OrcaWorkerApi): void {
       }
       return { ok: false, error: (err as Error).message.split('\n')[0] }
     }
-  })
+  }
+
+  /**
+   * Global shortcuts: go to the next (or previous) chat that needs you. Chats waiting for an
+   * answer or a permission come first, then the ones that stopped while you looked elsewhere;
+   * within each group, board order (column, then position). Walks on from the chat on screen.
+   */
+  async function goToAttention(dir: 1 | -1): Promise<string | undefined> {
+    const board = await loadBoard()
+    const status = await loadStatus()
+    const colIndex = new Map(board.columns.map((c, i) => [c.id, i]))
+    const tierOf = (key: string): number | null => {
+      const card = board.cards[key]
+      if (!card || card.closed) return null
+      const st = status[handles[key] ?? key]?.state
+      if (st === 'waiting' || st === 'blocked') return 0
+      if (card.unseenAt) return 1
+      return null
+    }
+    const list = Object.keys(board.cards)
+      .map((key) => ({ key, tier: tierOf(key) }))
+      .filter((x): x is { key: string; tier: number } => x.tier !== null)
+      .sort(
+        (a, b) =>
+          a.tier - b.tier ||
+          (colIndex.get(board.cards[a.key].column) ?? 99) - (colIndex.get(board.cards[b.key].column) ?? 99) ||
+          board.cards[a.key].order - board.cards[b.key].order
+      )
+      .map((x) => x.key)
+    if (list.length === 0) return 'Chat Board: no chat needs you'
+    const here = list.findIndex((k) => visible.has(k))
+    const start = here === -1 ? (dir === 1 ? 0 : list.length - 1) : (here + dir + list.length) % list.length
+    // A chat whose terminal is gone is skipped; try each candidate at most once.
+    for (let i = 0; i < list.length; i++) {
+      const key = list[(start + dir * i + list.length * list.length) % list.length]
+      if (visible.has(key) && list.length > 1) continue
+      const r = await focusKey(key)
+      if (r.ok) {
+        orca.panels.post('board.changed', await view(await loadBoard()))
+        return r.error === 'chat-workspace' ? 'Chat Board: opened its workspace. Press Ctrl+1 for the chat tab.' : undefined
+      }
+    }
+    return 'Chat Board: could not open a chat that needs you'
+  }
+
+  const runAttention = async (dir: 1 | -1) => {
+    const result = await goToAttention(dir)
+    orca.log(`attention ${dir === 1 ? 'next' : 'previous'}: ${result ?? 'switched'}`)
+    return result
+  }
+  orca.commands.register('chat-board.nextAttention', async () => runAttention(1))
+  orca.commands.register('chat-board.previousAttention', async () => runAttention(-1))
 
   // Terminals opened, closed or renamed, or focus moved: re-list, debounced.
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -335,7 +416,7 @@ export default function activate(orca: OrcaWorkerApi): void {
       if (next) monitors[handle] = next
       else if (monitors[handle]) delete monitors[handle]
       else return
-      await orca.storage.set(MONITORS_KEY, monitors)
+      await save(MONITORS_KEY, monitors)
       orca.panels.post('board.changed', await view(await loadBoard()))
     })
   })
@@ -344,7 +425,14 @@ export default function activate(orca: OrcaWorkerApi): void {
     serial(async () => {
       // A chat tab has no terminal: its tab id (the paneKey's first part) is its handle.
       const chatTab = paneKey.split(':')[0]
-      const terminalId = termId ?? (chatTab.startsWith(CHAT_TAB_PREFIX) ? chatTab : undefined)
+      // Orca leaves terminalId out for agents it cannot tie to a listed terminal, which is
+      // common for sessions started before Orca (or this plugin) was last restarted. Their
+      // paneKey still starts with the terminal's tab id, so look the handle up from that.
+      let terminalId = termId ?? (chatTab.startsWith(CHAT_TAB_PREFIX) ? chatTab : handles[chatTab])
+      if (!terminalId) {
+        await refresh(false)
+        terminalId = handles[chatTab]
+      }
       if (!terminalId) return
       const status = await loadStatus()
       const prev = status[terminalId]
@@ -357,14 +445,14 @@ export default function activate(orca: OrcaWorkerApi): void {
         outcome,
         main
       }
-      await orca.storage.set(STATUS_KEY, status)
+      await save(STATUS_KEY, status)
 
       // A turn of a loop or schedule is its sign of life.
       if (state === 'working') {
         const monitors = await loadMonitors()
         if (monitors[terminalId]) {
           monitors[terminalId] = onRun(monitors[terminalId], receivedAt)
-          await orca.storage.set(MONITORS_KEY, monitors)
+          await save(MONITORS_KEY, monitors)
         }
       }
 
@@ -388,7 +476,7 @@ export default function activate(orca: OrcaWorkerApi): void {
       }
       if (next !== board) {
         board = next
-        await orca.storage.set(BOARD_KEY, board)
+        await save(BOARD_KEY, board)
       }
       orca.panels.post('board.changed', await view(board))
     })
