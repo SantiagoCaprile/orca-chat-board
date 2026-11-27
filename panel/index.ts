@@ -53,6 +53,20 @@ let dragEndedAt = 0
 let flash: string | null = null
 let pendingRender = false
 
+/** List (columns stacked), board (side by side), or automatic: list when the panel is narrow. */
+type Layout = 'auto' | 'list' | 'board'
+const LAYOUT_KEY = 'chat-board.layout'
+const LAYOUTS: Layout[] = ['auto', 'list', 'board']
+const LAYOUT_ICONS: Record<Layout, string> = { auto: '⇆', list: '☰', board: '▥' }
+let layout: Layout = (() => {
+  try {
+    const v = localStorage.getItem(LAYOUT_KEY) as Layout | null
+    return v && LAYOUTS.includes(v) ? v : 'auto'
+  } catch {
+    return 'auto'
+  }
+})()
+
 /** What each card shows; mirrors the plugin's settings (Settings → Plugins → Chat Board). */
 const show = { agent: true, workspace: true, status: true, time: true, notes: true, preview: true }
 
@@ -235,16 +249,16 @@ function renderCard(c: CardView): HTMLElement {
       'div',
       { class: 'card-top' },
       c.unseenAt && !c.closed ? el('span', { class: 'unseen-dot', title: t.unseen, role: 'img', 'aria-label': t.unseen }) : null,
+      c.agent && show.agent ? agentBadge(c.agent) : null,
       el('span', { class: 'card-title' }, titleOf(c)),
+      show.time && mon ? el('span', { class: `time ${kind}`, title: mon.title }, mon.text) : when && show.time ? el('span', { class: 'time' }, ago(when)) : null,
       stateBadge
     ),
     el(
       'div',
       { class: 'card-meta' },
-      c.agent && show.agent ? agentBadge(c.agent) : null,
       c.worktreeName && show.workspace ? el('span', { class: 'chip ws' }, c.worktreeName) : null,
-      c.label && c.title && c.label !== c.title ? el('span', {}, c.title) : null,
-      show.time && mon ? el('span', { class: `time ${kind}`, title: mon.title }, mon.text) : when && show.time ? el('span', { class: 'time' }, ago(when)) : null
+      c.label && c.title && c.label !== c.title ? el('span', {}, c.title) : null
     ),
     c.note && show.notes && editingCard !== c.key ? el('div', { class: 'note' }, c.note) : null
   )
@@ -453,11 +467,25 @@ function renderColumn(col: Column, i: number, columns: Column[], cards: CardView
       }
     }
     input.onblur = commit
-    setTimeout(() => (input.focus(), input.select()))
+    setTimeout(() => (input.focus(), input.select(), input.scrollIntoView({ block: 'nearest', inline: 'nearest' })))
     head.append(input)
   } else {
     const title = el('span', { class: 'column-title', title: t.renameHint }, col.title)
+    // A click on the header (not its buttons) collapses the column; wait briefly so a
+    // double-click on the title can still rename it instead.
+    let collapseTimer: ReturnType<typeof setTimeout> | null = null
+    head.classList.add('clickable')
+    head.onclick = (e) => {
+      if ((e.target as HTMLElement).closest('button, input')) return
+      if (collapseTimer) return
+      collapseTimer = setTimeout(() => {
+        collapseTimer = null
+        setCollapsed(col, columns, true)
+      }, 250)
+    }
     title.ondblclick = () => {
+      if (collapseTimer) clearTimeout(collapseTimer)
+      collapseTimer = null
       renamingColumn = col.id
       render(true)
     }
@@ -530,6 +558,13 @@ function render(force = false): void {
   pendingRender = false
   const root = document.getElementById('app')!
   const searchHadFocus = document.activeElement?.classList.contains('search')
+  // Every render rebuilds the board, so remember where the scrollable parts were.
+  const scrolled = (sel: string) => {
+    const n = root.querySelector(sel) as HTMLElement | null
+    return n ? { top: n.scrollTop, left: n.scrollLeft } : null
+  }
+  const boardScroll = scrolled('.board')
+  const archiveScroll = scrolled('details.archive')
 
   const search = el('input', { class: 'search', type: 'search', placeholder: t.filter, 'aria-label': t.filterLabel })
   search.value = filter
@@ -547,7 +582,18 @@ function render(force = false): void {
     void saveColumns([...view.columns, { id, title: t.newColumn }])
   }
 
-  const children: Node[] = [el('div', { class: 'toolbar' }, search, addCol, refresh)]
+  const layoutBtn = el('button', { class: 'ghost layout-toggle', title: t.layout[layout], 'aria-label': t.layout[layout] }, LAYOUT_ICONS[layout])
+  layoutBtn.onclick = () => {
+    layout = LAYOUTS[(LAYOUTS.indexOf(layout) + 1) % LAYOUTS.length]
+    try {
+      localStorage.setItem(LAYOUT_KEY, layout)
+    } catch {
+      // Storage blocked: the choice lasts until the panel reloads.
+    }
+    render(true)
+  }
+
+  const children: Node[] = [el('div', { class: 'toolbar' }, search, addCol, layoutBtn, refresh)]
   const error = flash ?? (view?.error ? t.listFailed(view.error) : null)
   if (error) children.push(el('div', { class: 'error', role: 'status' }, error))
 
@@ -555,7 +601,7 @@ function render(force = false): void {
     children.push(el('div', { class: 'empty' }, t.loading))
   } else {
     const open = view.cards.filter((c) => !c.closed && matches(c))
-    const board = el('div', { class: 'board' })
+    const board = el('div', { class: `board layout-${layout}` })
     view.columns.forEach((col, i) => {
       const cards = open.filter((c) => c.column === col.id).sort((a, b) => a.order - b.order)
       board.append(renderColumn(col, i, view!.columns, cards))
@@ -598,6 +644,15 @@ function render(force = false): void {
   }
 
   root.replaceChildren(...children)
+  const restore = (sel: string, pos: { top: number; left: number } | null) => {
+    const n = root.querySelector(sel) as HTMLElement | null
+    if (n && pos) {
+      n.scrollTop = pos.top
+      n.scrollLeft = pos.left
+    }
+  }
+  restore('.board', boardScroll)
+  restore('details.archive', archiveScroll)
   if (searchHadFocus) {
     search.focus()
     search.setSelectionRange(search.value.length, search.value.length)
