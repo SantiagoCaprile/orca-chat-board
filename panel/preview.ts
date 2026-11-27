@@ -15,6 +15,8 @@ const cache = new Map<string, { at: number; data: Preview }>()
 let timer: ReturnType<typeof setTimeout> | null = null
 let pop: HTMLDivElement | null = null
 let currentKey: string | null = null
+/** Bumped on every schedule and hide: a load that finishes after either is stale and dropped. */
+let generation = 0
 
 /** Plain text from the agent's markdown: drops emphasis markers and code fences, keeps line breaks. */
 function plain(text: string): string {
@@ -75,6 +77,7 @@ function render(data: Preview): HTMLDivElement {
 }
 
 export function hidePreview(): void {
+  generation++
   if (timer) clearTimeout(timer)
   timer = null
   currentKey = null
@@ -100,11 +103,17 @@ const exitEvents: [EventTarget, string][] = [
   [document, 'mousedown']
 ]
 const onExit = () => hidePreview()
+/** Leaving the panel document: more dependable inside Orca's panel frame than mouseleave alone. */
+const onOut = (e: MouseEvent) => {
+  if (!e.relatedTarget) hidePreview()
+}
 function watchExit(): void {
   for (const [target, type] of exitEvents) target.addEventListener(type, onExit, { capture: true, passive: true })
+  document.addEventListener('mouseout', onOut, { capture: true, passive: true })
 }
 function unwatchExit(): void {
   for (const [target, type] of exitEvents) target.removeEventListener(type, onExit, { capture: true })
+  document.removeEventListener('mouseout', onOut, { capture: true })
 }
 
 /** Hides the popover once the pointer is no longer on that card (cards are redrawn under it). */
@@ -115,6 +124,7 @@ function onMove(e: MouseEvent): void {
 
 export function schedulePreview(key: string, anchor: HTMLElement): void {
   hidePreview()
+  const gen = generation
   currentKey = key
   document.addEventListener('mousemove', onMove, true)
   watchExit()
@@ -127,7 +137,9 @@ export function schedulePreview(key: string, anchor: HTMLElement): void {
     } catch {
       return
     }
-    if (currentKey !== key) return
+    if (gen !== generation || currentKey !== key) return
+    // Never two at once: drop any popover still on the page, fading or orphaned.
+    for (const stale of document.querySelectorAll('.preview')) stale.remove()
     const target = document.querySelector(`.card[data-key="${CSS.escape(key)}"]`) ?? anchor
     pop = render(data)
     document.body.append(pop)
