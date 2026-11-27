@@ -53,6 +53,20 @@ let dragEndedAt = 0
 let flash: string | null = null
 let pendingRender = false
 
+/** List (columns stacked), board (side by side), or automatic: list when the panel is narrow. */
+type Layout = 'auto' | 'list' | 'board'
+const LAYOUT_KEY = 'chat-board.layout'
+const LAYOUTS: Layout[] = ['auto', 'list', 'board']
+const LAYOUT_ICONS: Record<Layout, string> = { auto: '⇆', list: '☰', board: '▥' }
+let layout: Layout = (() => {
+  try {
+    const v = localStorage.getItem(LAYOUT_KEY) as Layout | null
+    return v && LAYOUTS.includes(v) ? v : 'auto'
+  } catch {
+    return 'auto'
+  }
+})()
+
 /** What each card shows; mirrors the plugin's settings (Settings → Plugins → Chat Board). */
 const show = { agent: true, workspace: true, status: true, time: true, notes: true, preview: true }
 
@@ -568,7 +582,18 @@ function render(force = false): void {
     void saveColumns([...view.columns, { id, title: t.newColumn }])
   }
 
-  const children: Node[] = [el('div', { class: 'toolbar' }, search, addCol, refresh)]
+  const layoutBtn = el('button', { class: 'ghost layout-toggle', title: t.layout[layout], 'aria-label': t.layout[layout] }, LAYOUT_ICONS[layout])
+  layoutBtn.onclick = () => {
+    layout = LAYOUTS[(LAYOUTS.indexOf(layout) + 1) % LAYOUTS.length]
+    try {
+      localStorage.setItem(LAYOUT_KEY, layout)
+    } catch {
+      // Storage blocked: the choice lasts until the panel reloads.
+    }
+    render(true)
+  }
+
+  const children: Node[] = [el('div', { class: 'toolbar' }, search, addCol, layoutBtn, refresh)]
   const error = flash ?? (view?.error ? t.listFailed(view.error) : null)
   if (error) children.push(el('div', { class: 'error', role: 'status' }, error))
 
@@ -576,7 +601,7 @@ function render(force = false): void {
     children.push(el('div', { class: 'empty' }, t.loading))
   } else {
     const open = view.cards.filter((c) => !c.closed && matches(c))
-    const board = el('div', { class: 'board' })
+    const board = el('div', { class: `board layout-${layout}` })
     view.columns.forEach((col, i) => {
       const cards = open.filter((c) => c.column === col.id).sort((a, b) => a.order - b.order)
       board.append(renderColumn(col, i, view!.columns, cards))

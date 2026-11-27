@@ -57,6 +57,11 @@ const en = {
   refresh: 'List chats again',
   addColumn: 'Add column',
   addColumnButton: '+ Column',
+  layout: {
+    auto: 'Layout: automatic (list when narrow). Click for list',
+    list: 'Layout: list. Click for board',
+    board: 'Layout: board. Click for automatic'
+  },
   newColumn: 'New column',
   collapse: 'Collapse column',
   expand: (title: string, n: number) => `${title} (${n}): click to expand`,
@@ -125,6 +130,11 @@ const es: Strings = {
   refresh: 'Volver a listar los chats',
   addColumn: 'Agregar columna',
   addColumnButton: '+ Columna',
+  layout: {
+    auto: 'Vista: automática (lista si es estrecha). Clic para lista',
+    list: 'Vista: lista. Clic para tablero',
+    board: 'Vista: tablero. Clic para automática'
+  },
   newColumn: 'Nueva columna',
   collapse: 'Contraer columna',
   expand: (title, n) => `${title} (${n}): click para expandir`,

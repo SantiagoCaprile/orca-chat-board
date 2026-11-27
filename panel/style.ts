@@ -53,12 +53,19 @@ input:focus, textarea:focus, button:focus-visible, .card:focus-visible {
   color: color-mix(in srgb, var(--col) 70%, var(--orca-foreground));
 }
 
+/* List layout: columns stacked, each a section; collapsed ones become a one-line header.
+   Chosen in the toolbar, or automatic when the panel is narrow. */
+.board.layout-list { flex-direction: column; align-items: stretch; }
+.board.layout-list > .column, .board.layout-list > .column.collapsed { flex: none; min-width: 0; }
+.board.layout-list .column.collapsed { flex-direction: row; min-height: 0; padding: 6px 8px; }
+.board.layout-list .column.collapsed .strip-title { writing-mode: horizontal-tb; flex: 1; }
 @media (max-width: 420px) {
-  .board { flex-direction: column; align-items: stretch; }
-  .board > .column, .board > .column.collapsed { flex: none; min-width: 0; }
-  .column.collapsed { flex-direction: row; min-height: 0; padding: 6px 8px; }
-  .column.collapsed .strip-title { writing-mode: horizontal-tb; flex: 1; }
+  .board.layout-auto { flex-direction: column; align-items: stretch; }
+  .board.layout-auto > .column, .board.layout-auto > .column.collapsed { flex: none; min-width: 0; }
+  .board.layout-auto .column.collapsed { flex-direction: row; min-height: 0; padding: 6px 8px; }
+  .board.layout-auto .column.collapsed .strip-title { writing-mode: horizontal-tb; flex: 1; }
 }
+.layout-toggle { min-width: 24px; }
 
 .column {
   --col: #4f8ff7;
